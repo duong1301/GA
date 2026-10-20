@@ -1,0 +1,423 @@
+[
+	{
+		"prof": {
+			"id": 1,
+			"name": "Nguyễn Văn An"
+		}
+	},
+	{
+		"prof": {
+			"id": 2,
+			"name": "Trần Thị Bình"
+		}
+	},
+	{
+		"prof": {
+			"id": 3,
+			"name": "Lê Quốc Cường"
+		}
+	},
+	{
+		"prof": {
+			"id": 4,
+			"name": "Phạm Thị Dung"
+		}
+	},
+	{
+		"prof": {
+			"id": 5,
+			"name": "Vũ Anh Đức"
+		}
+	},
+	{
+		"prof": {
+			"id": 6,
+			"name": "Đặng Thị Giang"
+		}
+	},
+	{
+		"prof": {
+			"id": 7,
+			"name": "Hoàng Minh Hà"
+		}
+	},
+	{
+		"prof": {
+			"id": 8,
+			"name": "Bùi Văn Kiên"
+		}
+	},
+	{
+		"prof": {
+			"id": 9,
+			"name": "Đỗ Thị Lan"
+		}
+	},
+	{
+		"prof": {
+			"id": 10,
+			"name": "Nguyễn Tuấn Minh"
+		}
+	},
+	{
+		"prof": {
+			"id": 11,
+			"name": "Trương Thị Nga"
+		}
+	},
+	{
+		"prof": {
+			"id": 12,
+			"name": "Lê Văn Phúc"
+		}
+	},
+	{
+		"prof": {
+			"id": 13,
+			"name": "Phan Thị Quyên"
+		}
+	},
+	{
+		"course": {
+			"id": 1,
+			"name": "Lập trình Python"
+		}
+	},
+	{
+		"course": {
+			"id": 2,
+			"name": "Kiến trúc máy tính"
+		}
+	},
+	{
+		"course": {
+			"id": 3,
+			"name": "Tin học văn phòng"
+		}
+	},
+	{
+		"course": {
+			"id": 4,
+			"name": "Tiếng Anh"
+		}
+	},
+	{
+		"course": {
+			"id": 5,
+			"name": "Toán rời rạc I"
+		}
+	},
+	{
+		"course": {
+			"id": 6,
+			"name": "Đại số tuyến tính"
+		}
+	},
+	{
+		"course": {
+			"id": 7,
+			"name": "Tin học đại cương I"
+		}
+	},
+	{
+		"course": {
+			"id": 8,
+			"name": "Quản trị và bảo trì hệ thống I"
+		}
+	},
+	{
+		"room": {
+			"name": "Phòng 201",
+			"size": 24
+		}
+	},
+	{
+		"room": {
+			"name": "Phòng 102",
+			"size": 60
+		}
+	},
+	{
+		"group": {
+			"id": 1,
+			"name": "K19 nhóm 1",
+			"size": 19
+		}
+	},
+	{
+		"group": {
+			"id": 2,
+			"name": "K19 nhóm 2",
+			"size": 19
+		}
+	},
+	{
+		"group": {
+			"id": 3,
+			"name": "K19 nhóm 3",
+			"size": 19
+		}
+	},
+	{
+		"group": {
+			"id": 4,
+			"name": "K19 nhóm 4",
+			"size": 19
+		}
+	},
+	{
+		"class": {
+			"professor": 1,
+			"course": 1,
+			"duration": 2,
+			"groups": [
+				1,
+				2
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 1,
+			"course": 1,
+			"duration": 2,
+			"groups": [
+				3,
+				4
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 9,
+			"course": 1,
+			"duration": 3,
+			"group": 1
+		}
+	},
+	{
+		"class": {
+			"professor": 9,
+			"course": 1,
+			"duration": 3,
+			"group": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 9,
+			"course": 1,
+			"duration": 3,
+			"group": 3
+		}
+	},
+	{
+		"class": {
+			"professor": 9,
+			"course": 1,
+			"duration": 3,
+			"group": 4
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 2,
+			"duration": 2,
+			"group": [
+				3,
+				4
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 2,
+			"duration": 2,
+			"group": [
+				1,
+				2
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 2,
+			"duration": 2,
+			"group": 1
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 2,
+			"duration": 2,
+			"group": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 2,
+			"duration": 2,
+			"group": 3
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 2,
+			"duration": 2,
+			"group": 4
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 4,
+			"duration": 2,
+			"group": [
+				3,
+				4
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 4,
+			"duration": 2,
+			"group": [
+				3,
+				4
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 4,
+			"duration": 2,
+			"group": [
+				1,
+				2
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 4,
+			"duration": 2,
+			"group": [
+				1,
+				2
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 5,
+			"course": 6,
+			"duration": 2,
+			"group": [
+				1,
+				2,
+				3
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 5,
+			"course": 6,
+			"duration": 2,
+			"group": [
+				1,
+				2,
+				3
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 7,
+			"course": 5,
+			"duration": 2,
+			"group": [
+				1,
+				2,
+				3
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 7,
+			"course": 5,
+			"duration": 2,
+			"group": [
+				1,
+				2
+			]
+		}
+	},
+	{
+		"class": {
+			"professor": 10,
+			"course": 5,
+			"duration": 2,
+			"group": 3
+		}
+	},
+	{
+		"class": {
+			"professor": 8,
+			"course": 3,
+			"duration": 2,
+			"group": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 8,
+			"course": 3,
+			"duration": 2,
+			"group": 3
+		}
+	},
+	{
+		"class": {
+			"professor": 12,
+			"course": 3,
+			"duration": 2,
+			"group": 1
+		}
+	},
+	{
+		"class": {
+			"professor": 12,
+			"course": 3,
+			"duration": 2,
+			"group": 4
+		}
+	},
+	{
+		"class": {
+			"professor": 11,
+			"course": 7,
+			"duration": 2,
+			"group": 4
+		}
+	},
+	{
+		"class": {
+			"professor": 13,
+			"course": 8,
+			"duration": 2,
+			"group": 4
+		}
+	}
+]

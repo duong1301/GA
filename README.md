@@ -1,0 +1,326 @@
+# GASchedule.py
+
+Lập thời khóa biểu học bằng thuật toán di truyền với Python
+
+# Giới thiệu
+
+Lập thời khóa biểu là một bài toán NP-khó. Bài toán này có thể được giải bằng thuật toán tìm kiếmheuristic để tìm ra phương án tối ưu, nhưng cách đó chỉ hiệu quả với những trường hợp đơn giản. Với dữ liệu đầu vào và yêu cầu phức tạp hơn, việc tìm ra một phương án tốt có thể mất khá lâu, hoặc thậm chí không thể thực hiện được. Đây là lúc thuật toán di truyền bước vào cuộc. Trong tài liệu này, tôi giả định rằng bạn đã quen thuộc với các khái niệm cơ bản của thuật toán di truyền, nên sẽ không mô tả lại chi tiết, vì điều đó đã được trình bày rất nhiều lần trước đây.
+
+# Bối cảnh
+
+Khi lập thời khóa biểu, bạn phải tính đến nhiều yêu cầu: số lượng giảng viên, sinh viên, lớp học và phòng học, sức chứa phòng, cùng nhiều yếu tố khác. Các yêu cầu này có thể được chia thành vài nhóm theo mức độ quan trọng.
+
+**Ràng buộc cứng** (vi phạm một ràng buộc thì lịch không khả thi):
+
+1. Một lớp học chỉ có thể được xếp vào phòng học còn trống.
+2. Không giảng viên hoặc nhóm sinh viên nào được có hai lớp học cùng lúc.
+3. Phòng học phải đủ chỗ để chứa toàn bộ sinh viên.
+
+**Ràng buộc mềm** (có thể bị vi phạm mà lịch vẫn khả thi):
+
+1. Thời gian giảng viên muốn dạy.
+2. Phòng học giảng viên muốn dùng.
+3. Mức độ phân bố (theo thời gian hoặc không gian) của các lớp học dành cho nhóm sinh viên hoặc giảng viên.
+
+Rõ ràng, ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình huống cụ thể. Trong ví dụ này, chỉ các ràng buộc cứng được cài đặt. Hãy bắt đầu bằng việc giải thích các đối tượng tạo nên một thời khóa biểu.
+
+# Các đối tượng của thời khóa biểu
+
+**Giảng viên (`Professor`)**
+Lớp `Professor` có mã và tên của giảng viên. Nó cũng chứa danh sách các lớp mà giảng viên đó phụ trách dạy.
+
+**Nhóm sinh viên (`StudentsGroup`)**
+Lớp `StudentsGroup` có mã và tên của nhóm sinh viên, cùng với số lượng sinh viên (quy mô nhóm). Nó cũng chứa danh sách các lớp mà nhóm đó tham dự.
+
+**Phòng học (`Room`)**
+Lớp `Room` có mã và tên của phòng học, cùng với số chỗ ngồi. Mã định danh được sinh ra tự động bên trong.
+
+**Môn học (`Course`)**
+Lớp `Course` có mã và tên của môn học.
+
+**Lớp học (`CourseClass`)**
+Đối tượng `CourseClass` giữ tham chiếu tới môn học mà lớp thuộc về, tham chiếu tới giảng viên phụ trách dạy, và danh sách các nhóm sinh viên tham dự lớp. Nó cũng lưu số chỗ cần có trong phòng (tổng số sinh viên của các nhóm) và thời lượng của lớp (tính bằng giờ).
+
+**Nhiễm sắc thể (`Chromosome`)**
+Việc đầu tiên cần cân nhắc khi làm việc với thuật toán di truyền là cách biểu diễn lời giải sao cho thuận tiện cho các phép toán lai ghép (crossover) và biến dị (mutation). Đồng thời, ta cũng cần biết lời giải đó tốt đến đâu, nói cách khác là phải tính được giá trị độ thích nghi (fitness) của lời giải.
+
+## Cách biểu diễn
+
+Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Ta cũng giả thiết rằng lớp học không được bắt đầu trước 9 giờ sáng và phải kết thúc trước hoặc đúng 21 giờ (tổng cộng 12 tiết), và ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày).
+
+Kết quả sẽ được hiển thị dưới dạng bảng HTML. Chương trình sẽ mở trình duyệt mặc định để trình bày thời khóa biểu một cách rõ ràng.
+
+# Độ thích nghi
+
+Bây giờ cần gán một giá trị độ thích nghi cho nhiễm sắc thể. Như đã nói ở trên, chỉ có các ràng buộc cứng được dùng để tính độ thích nghi. Cách tính như sau:
+
+- Mỗi lớp học có thể nhận từ 0 đến 4 điểm, ứng với 4 tiêu chí `P`, `C`, `G`, `S`.
+- Nếu lớp học nằm trong phòng còn trống, tăng điểm của lớp đó.
+- Nếu phòng học có đủ số chỗ ngồi, tăng điểm của lớp.
+- Nếu giảng viên không có lớp khác trong thời điểm đó, tăng thêm một điểm cho lớp.
+- Điều cuối cùng cần kiểm tra là liệu có nhóm sinh viên nào tham dự lớp đó có lớp khác cùng thời điểm hay không, nếu không thì tăng điểm cho lớp.
+- Nếu một lớp vi phạm quy tắc, điểm của tiêu chí đó là `1 - trọng số phạt` thay vì `1`. Trọng số phạt nằm trong khoảng 0 đến 1; `0` nghĩa là không phạt, `1` nghĩa là mất trọn điểm của tiêu chí.
+
+Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó `điểm_tối_đa = số_lớp_học × 4`. Giá trị độ thích nghi nằm trong khoảng từ 0 đến 1.
+
+> **Lưu ý về cơ chế phạt:** Vì các ràng buộc cứng chỉ bị trừ điểm chứ không bị loại bỏ nhiệm vụ, nên luôn tồn tại một lời giải khả thi. Thuật toán tiến dần đưa giá trị độ thích nghi về gần 1, và dừng lại khi đạt ngưỡng (mặc định là 0,999).
+
+# Lai ghép (Crossover)
+
+Một phép lai ghép kết hợp dữ liệu trong các bản đồ băm (hash map) của hai nhiễm sắc thể cha mẹ, rồi tạo ra một vectơ các ô thời gian - không gian dựa trên nội dung của bản đồ băm mới. Phép lai ghép "chia" bản đồ băm của cả hai cha mẹ thành các phần có kích thước ngẫu nhiên. Số phần được xác định bởi số điểm lai ghép (cộng thêm một) trong các tham số của nhiễm sắc thể. Sau đó, nó lần lượt chép các phần từ cha mẹ sang nhiễm sắc thể mới một cách xen kẽ, và hình thành một danh sách các ô thời gian - không gian mới.
+
+# Biến dị (Mutation)
+
+Một phép biến dị rất đơn giản. Nó chỉ đơn giản là chọn ngẫu nhiên một lớp học và chuyển nó sang một ô thời gian - không gian khác được chọn ngẫu nhiên. Số lớp học sẽ được chuyển trong một lần thao tác được quy định bởi kích thước biến dị (mutation size) trong các tham số của nhiễm sắc thể.
+
+# Thuật toán
+
+Thuật toán di truyền khá đơn giản. Với mỗi thế hệ, nó thực hiện hai thao tác cơ bản:
+
+1. Ngẫu nhiên chọn N cặp cha mẹ từ quần thể hiện tại và tạo ra N nhiễm sắc thể mới bằng cách thực hiện phép lai ghép trên mỗi cặp.
+2. Ngẫu nhiên chọn N nhiễm sắc thể từ quần thể hiện tại và thay thế chúng bằng những cái mới. Thuật toán không chọn những nhiễm sắc thể để thay thế nếu nó nằm trong nhóm những nhiễm sắc thể tốt nhất.
+
+Hai thao tác này được lặp lại cho đến khi nhiễm sắc thể tốt nhất đạt giá trị độ thích nghi bằng 1 (nghĩa là tất cả các lớp trong lịch đều đáp ứng yêu cầu). Như đã đề cập trước đó, thuật toán di truyền theo dõi một nhóm cá thể tốt nhất trong quần thể, và bảo đảm chúng không bị thay thế khi nằm trong nhóm những cái tốt nhất.
+
+# Tệp cấu hình JSON
+
+Các loại đối tượng:
+
+- `prof` - mô tả một giảng viên.
+- `course` - mô tả một môn học.
+- `room` - mô tả một phòng học.
+- `group` - mô tả một nhóm sinh viên.
+- `class` - mô tả một lớp học, ràng buộc giảng viên, môn học và nhóm sinh viên.
+
+Cấu trúc các khoá:
+
+**prof:**
+`id` (số, bắt buộc) - mã của giảng viên.
+`name` (chuỗi, bắt buộc) - tên của giảng viên.
+
+**course:**
+`id` (số, bắt buộc) - mã của môn học.
+`name` (chuỗi, bắt buộc) - tên của môn học.
+
+**room:**
+`name` (chuỗi, bắt buộc) - tên của phòng học.
+`size` (số, bắt buộc) - số chỗ ngồi trong phòng.
+
+**group:**
+`id` (số, bắt buộc) - mã của nhóm sinh viên.
+`name` (chuỗi, bắt buộc) - tên của nhóm sinh viên.
+`size` (số, bắt buộc) - số sinh viên trong nhóm.
+
+**class:**
+`professor` (số, bắt buộc) - mã của giảng viên; ràng buộc giảng viên vào một lớp học.
+`course` (số, bắt buộc) - mã của môn học; ràng buộc môn học vào một lớp học.
+`group` hoặc `groups` (số hoặc mảng số, bắt buộc) - mã của nhóm sinh viên; ràng buộc nhóm sinh viên vào một lớp học; mỗi lớp học có thể được ràng buộc với nhiều nhóm sinh viên.
+`duration` (số, tuỳ chọn) - thời lượng lớp học (tính bằng giờ); nếu không khai báo thì mặc định là 1.
+
+> **Lưu ý:** tiêu chí máy tính (`M`) và khóa `lab` đã được bỏ hoàn toàn khỏi bài toán.
+> Tệp cấu hình không cần khai báo `lab` cho phòng hay lớp học; nếu tệp cũ còn khóa này,
+> chương trình sẽ bỏ qua. Xem mục "Trọng số tiêu chí" bên dưới.
+
+Lưu ý: các đối tượng giảng viên, nhóm sinh viên và môn học phải được định nghĩa trước khi được ràng buộc vào một đối tượng lớp học.
+
+## Ví dụ dữ liệu mẫu
+
+Tệp `GaSchedule.json` đi kèm chứa: 13 giảng viên, 8 môn học, 2 phòng học (một phòng 24 chỗ, một phòng 60 chỗ), 4 nhóm sinh viên 19 người và 27 lớp học.
+
+```json
+[
+    { "prof":   { "id": 1, "name": "Nguyễn Văn An" } },
+    { "course": { "id": 1, "name": "Lập trình Python" } },
+    { "room":   { "name": "Phòng 201", "size": 24 } },
+    { "group":  { "id": 1, "name": "K19 nhóm 1", "size": 19 } },
+    { "class":  { "professor": 1, "course": 1, "duration": 2,
+                  "groups": [1, 2] } }
+]
+```
+
+## Trọng số tiêu chí
+
+Bốn tiêu chí được lưu trong `model/Criteria.py`. Trọng số là **mức phạt** khi lớp học vi phạm:
+
+| Mã | Tiêu chí | Trọng số phạt |
+|---|---|---|
+| `P` | Phòng học không bị trùng lịch | 1.0 |
+| `C` | Phòng học có đủ chỗ ngồi | 0.5 |
+| `G` | Giảng viên không bị trùng lịch | 1.0 |
+| `S` | Nhóm sinh viên không bị trùng lịch | 1.0 |
+
+Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - trọng số`. Vì vậy `P`, `G`, `S` là các tiêu chí nghiêm: vi phạm sẽ mất trọn 1 điểm; `C` nhẹ hơn: vi phạm chỉ mất 0.5 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
+
+# Hiệu năng
+
+Thời gian chạy phụ thuộc vào dữ liệu đầu vào, kích thước quần thể và số thế hệ. Chạy `python ConsoleApp.py` để đo thời gian thực tế; tăng `maxStagnation` hoặc `maxIterations` nếu muốn thuật toán tìm kiếm lâu hơn.
+
+# Cách chạy
+
+## Chạy từ dòng lệnh
+
+```powershell
+python -m pip install -r requirements.txt
+python ConsoleApp.py                    # dùng tệp GaSchedule.json mặc định
+python ConsoleApp.py du_lieu_rieng.json # dùng tệp cấu hình khác
+```
+
+Chương trình in tiến trình tối ưu hoá ra màn hình, sau khi hoàn thành sẽ tạo tệp kết quả `.htm` trong thư mục tạm của hệ điều hành và tự mở bằng trình duyệt mặc định.
+
+`ConsoleApp.py` hiện dùng `GeneticAlgorithm` với mặc định tối đa 1000 thế hệ, dừng khi fitness vượt `0.999` hoặc sau 100 thế hệ liên tiếp không cải thiện. Có thể tăng `maxStagnation` khi khởi tạo nếu muốn thuật toán tìm kiếm lâu hơn.
+
+## Cách dùng như một thư viện
+
+```python
+import pathlib
+import time
+
+from model.Configuration import Configuration
+from algorithm.GeneticAlgorithm import GeneticAlgorithm
+from HtmlOutput import HtmlOutput
+from Trace import Trace as Tracer
+
+file_name = "/GaSchedule.json"
+start_time = int(round(time.time() * 1000))
+
+configuration = Configuration()
+target_file = str(pathlib.Path().absolute()) + file_name
+configuration.parseFile(target_file)
+
+Tracer.reset()
+alg = GeneticAlgorithm(configuration)
+alg.run()
+html_result = HtmlOutput.getResult(alg.result, history=Tracer.get_history())
+```
+
+`HtmlOutput.getResult()` trả về một tài liệu HTML hoàn chỉnh (có `<!DOCTYPE html>`), có thể ghi trực tiếp ra tệp `.html` rồi mở bằng trình duyệt.
+
+Nếu truyền thêm `history=Tracer.get_history()`, tài liệu HTML sẽ có:
+- biểu đồ đường **Fitness qua các thế hệ** thể hiện mức tăng/giảm của fitness qua mọi thế hệ đã chạy, kèm các chỉ số bắt đầu, cao nhất và cuối cùng;
+- các khối **Thời khóa biểu qua các bước** cho phép mở từng bước trung gian để xem lịch tương ứng, kèm badge số lớp đạt từng tiêu chí `P/C/G/S`.
+
+Gọi `Tracer.reset()` trước khi chạy để xóa lịch sử của lần chạy trước. Nếu không truyền `history`, HTML chỉ hiển thị kết quả cuối cùng như trước đây. Mặc định tối đa 60 bước tiêu biểu được vẽ lịch chi tiết; có thể đổi bằng `HtmlOutput.MAX_STEP_PANELS`.
+
+Có thể thay `GeneticAlgorithm` bằng bất kỳ thuật toán nào khác trong thư mục `algorithm/`, chẳng hạn `Cso`, `NsgaII`, `Ngra`, `NsgaIII`, `GaQpso`, `Fpa`, `Dlba`, `APNsgaIII` hoặc `Amga2`.
+
+# Thư viện yêu cầu
+
+- `numpy >= 1.2.0`
+
+# Giải thích kết quả xuất ra
+
+Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS, không cần mạng) gồm:
+
+- Phần tiêu đề, thống kê độ phù hợp và chú thích 4 tiêu chí.
+- **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 12 hàng tương ứng 12 tiết và 5 cột tương ứng từ thứ hai đến thứ sáu.
+- **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
+- **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/C/G/S` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
+
+Giao diện dùng thẻ (card) cho từng phòng, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; khi in chỉ giữ lại phần thời khóa biểu cuối cùng. Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
+
+- Tên môn học, tên giảng viên, các nhóm sinh viên tham dự và nhãn thời lượng (ví dụ `2 tiết`).
+- Nếu nhiều lớp cùng được xếp vào một phòng, cùng ngày và cùng tiết (vi phạm tiêu chí `P`), tất cả vẫn được hiển thị: các thẻ lớp học xếp chồng trong ô kèm nhãn `Trùng phòng`; những tiết tiếp theo của lớp kéo dài được đánh dấu `Tiếp tiết`.
+- Bốn ký hiệu nhỏ mô tả trạng thái kiểm tra ràng buộc, **xanh lá là đạt, đỏ là vi phạm** (đưa chuột vào sẽ hiện giải thích):
+
+| Ký hiệu | Ý nghĩa |
+|---|---|
+| `P` | Phòng học không bị trùng lịch |
+| `C` | Phòng học có đủ chỗ ngồi |
+| `G` | Giảng viên không bị trùng lịch dạy |
+| `S` | Nhóm sinh viên không bị trùng lịch học |
+
+# Theo dõi từng bước khi chạy
+
+Tệp `Trace.py` in ra console thông tin đầu vào và tiến trình tối ưu hoá. Đồng thời, mỗi thế hệ được lưu vào bộ nhớ để `HtmlOutput` vẽ biểu đồ fitness và thời khóa biểu của các bước (xem mục "Giải thích kết quả xuất ra").
+
+**0. Thông tin đầu vào** — in ra trước khi thuật toán bắt đầu chạy
+
+Gồm 6 bảng: giảng viên, môn học, phòng học, nhóm sinh viên, toàn bộ danh sách lớp học, và thống kê tổng thể.
+
+```
+THÔNG TIN ĐẦU VÀO
+Tệp cấu hình : /GaSchedule.json
+Quy mô       : 13 giảng viên, 8 môn học, 2 phòng học, 4 nhóm sinh viên, 27 lớp học
+
+  GIẢNG VIÊN
+  Mã    Họ tên                     Số lớp   Danh sách môn dạy
+  1     Nguyễn Văn An              2        Lập trình Python
+  ...
+
+  LỚP HỌC
+  Mã    Môn học                    Giảng viên      Nhóm sinh viên         Thời lượng Số chỗ cần
+  0     Lập trình Python           Nguyễn Văn An   K19 nhóm 1+K19 nhóm 2   2 tiết    38 chỗ
+  2     Lập trình Python           Đỗ Thị Lan      K19 nhóm 1             3 tiết    19 chỗ
+  ...
+
+  THỐNG KÊ
+  Tổng số giờ học trong tuần : 58 giờ (27 lớp, trung bình 2.1 giờ/lớp)
+  Sức chứa của hệ thống phòng: 12 tiết/ngày x 5 ngày x 2 phòng = 120 giờ
+  Tỉ lệ sử dụng phòng       : 48.3%
+  Lớn nhất trong 1 lớp      : 57 chỗ | Phòng lớn nhất: 60 chỗ -> đủ
+  Tổng số sinh viên         : 76 người / 4 nhóm
+```
+
+Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức chứa phòng trước khi chạy thuật toán.
+
+**1. Dòng tóm tắt cho mỗi thế hệ**
+
+```
+THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 100  | Số lần không cải thiện: 6     | Thời gian:   3.73s
+  Tiêu chí đạt (đạt/tổng): P=19/27   C=21/27   G=27/27   S=20/27
+```
+
+**2. Bảng thời khóa biểu đầy đủ** của cá thể tốt nhất, in lặp lại mỗi 10 thế hệ. Ta có thể quan sát lịch được sắp xếp lại dần như thế nào. Dấu `^` nghĩa là tiết tiếp theo của cùng một lớp đang kéo dài:
+
+```
+  +-- PHÒNG Phòng 201 (24 chỗ) --------------------------------------------
+  +------------------------------------------------------------------------------------
+  | Tiết              | T2                        | T3                        | ...
+  +------------------------------------------------------------------------------------
+  | Tiết 2 (10-11)    |                           | Lập trình Python / Đỗ Thị | ...
+  | Tiết 3 (11-12)    | Quản trị và bảo trì hệ thố| ^                         | ...
+  | Tiết 4 (12-13)    |                           | ^                         | ...
+  +------------------------------------------------------------------------------------
+```
+
+**3. Chi tiết từng lớp học** kèm 4 cờ tiêu chí, in mỗi 50 thế hệ. `-` là đạt, `X` là vi phạm:
+
+```
+  Mã   Môn học                      Giảng viên           Nhóm SV         Ngày  Tiết        Phòng     P C G S
+  0    Lập trình Python             Nguyễn Văn An        K19 nhóm 1+K19  T6    tiết 8 (2h)   Phòng 102  ----  T2
+  4    Lập trình Python             Đỗ Thị Lan           K19 nhóm 3       T4    tiết 9 (3h)   Phòng 102  -X--
+```
+
+## Tinh chỉnh mức độ chi tiết
+
+Điều chỉnh các hằng số ở đầu tệp `Trace.py`:
+
+| Hằng số | Mặc định | Ý nghĩa |
+|---|---|---|
+| `SCHEDULE_EVERY_GENERATION` | `10` | In bảng thời khóa biểu mỗi N thế hệ. Đặt `1` để in mỗi thế hệ, `None` để tắt hẳn |
+| `DETAIL_EVERY_GENERATION` | `50` | In chi tiết từng lớp mỗi N thế hệ. `None` để tắt |
+| `MAX_COLUMN_WIDTH` | `30` | Độ rộng tối đa của một cột trong bảng console |
+| `MAX_HISTORY` | `5000` | Số thế hệ tối đa được lưu để xuất biểu đồ fitness và lịch sử bước ra HTML |
+
+Lịch sử cho HTML được lưu độc lập với việc in bảng ra console. Muốn giới hạn số bước có lịch chi tiết trong HTML, đổi `HtmlOutput.MAX_STEP_PANELS` (mặc định `60`).
+
+Ví dụ muốn xem lịch thay đổi ở **từng** thế hệ:
+
+```python
+# Trace.py
+SCHEDULE_EVERY_GENERATION = 1
+DETAIL_EVERY_GENERATION = None
+```
+
+Muốn chạy nhanh và gọn như bản gốc:
+
+```python
+SCHEDULE_EVERY_GENERATION = None
+DETAIL_EVERY_GENERATION = None
+```
+
+Dòng tóm tắt mỗi thế hệ thì luôn được in. Nếu chạy thuật toán ngoài `ConsoleApp.py`, nhớ gọi `Trace.reset()` một lần trước khi chạy để mốc thời gian và lịch sử HTML bắt đầu từ đúng.
+
+# Giấy phép
+
+MIT
