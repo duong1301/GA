@@ -15,9 +15,11 @@ from model.Constant import Constant
 from algorithm.Cso import Cso
 
 DAYS = ("T2", "T3", "T4", "T5", "T6")
-PERIODS = [""] + ["Tiết 1 (9-10)", "Tiết 2 (10-11)", "Tiết 3 (11-12)", "Tiết 4 (12-13)",
-                  "Tiết 5 (13-14)", "Tiết 6 (14-15)", "Tiết 7 (15-16)", "Tiết 8 (16-17)",
-                  "Tiết 9 (17-18)", "Tiết 10 (18-19)", "Tiết 11 (19-20)", "Tiết 12 (20-21)"]
+PERIODS = [""] + [
+    f"Tiết {period} ({Constant.START_HOUR + period - 1}-"
+    f"{Constant.START_HOUR + period})"
+    for period in range(1, Constant.DAY_HOURS + 1)
+]
 
 config = Configuration()
 config.parseFile(str(pathlib.Path().absolute()) + "/GaSchedule.json")

@@ -19,12 +19,11 @@ class GeneticAlgorithm:
         self._prototype = prototype
 
         # quần thể phải có ít nhất 2 nhiễm sắc thể
-        if numberOfChromosomes < 2:
-            numberOfChromosomes = 2
+        numberOfChromosomes = max(2, int(numberOfChromosomes))
 
-        # và thuật toán phải theo dõi ít nhất một nhiễm sắc thể tốt nhất
-        if trackBest < 1:
-            trackBest = 1
+        # phải theo dõi ít nhất một nhiễm sắc thể tốt nhất,
+        # nhưng vẫn phải chừa chỗ cho ít nhất một nhiễm sắc thể con
+        trackBest = min(max(1, int(trackBest)), numberOfChromosomes - 1)
 
         # Quần thể nhiễm sắc thể
         self._chromosomes = numberOfChromosomes * [None]
@@ -38,12 +37,18 @@ class GeneticAlgorithm:
 
     # Khởi tạo thuật toán di truyền
     def __init__(self, configuration, numberOfCrossoverPoints=2, mutationSize=2, crossoverProbability=80,
-                 mutationProbability=3, maxIterations=1000, maxStagnation=100):
-        self.initAlgorithm(Schedule(configuration))
-        self._mutationSize = mutationSize
-        self._numberOfCrossoverPoints = numberOfCrossoverPoints
-        self._crossoverProbability = crossoverProbability
-        self._mutationProbability = mutationProbability
+                 mutationProbability=3, maxIterations=1000, maxStagnation=100,
+                 numberOfChromosomes=100, replaceByGeneration=8, trackBest=5):
+        self.initAlgorithm(
+            Schedule(configuration),
+            numberOfChromosomes,
+            replaceByGeneration,
+            trackBest,
+        )
+        self._mutationSize = max(1, int(mutationSize))
+        self._numberOfCrossoverPoints = max(1, int(numberOfCrossoverPoints))
+        self._crossoverProbability = max(0, min(100, int(crossoverProbability)))
+        self._mutationProbability = max(0, min(100, int(mutationProbability)))
 
         # Số thế hệ tối đa thuật toán được phép chạy (có thể ghi đè khi gọi run)
         self._max_iterations = max(1, maxIterations)
@@ -59,6 +64,7 @@ class GeneticAlgorithm:
     def set_replace_by_generation(self, value):
         numberOfChromosomes = len(self._chromosomes)
         trackBest = len(self._bestChromosomes)
+        value = max(1, int(value))
         if (value > numberOfChromosomes - trackBest):
             value = numberOfChromosomes - trackBest
         self._replaceByGeneration = value

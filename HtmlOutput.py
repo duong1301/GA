@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 from types import SimpleNamespace
 
+from model.AlgorithmParameters import FIELDS, format_value, normalize, summary
 from model.Constant import Constant
 from model.Reservation import Reservation
 
@@ -37,15 +38,12 @@ class HtmlOutput:
         "Giảng viên bị trùng lịch dạy",
         "Nhóm sinh viên bị trùng lịch học",
     )
-    PERIODS = (
-        "", "Tiết 1", "Tiết 2", "Tiết 3", "Tiết 4",
-        "Tiết 5", "Tiết 6", "Tiết 7", "Tiết 8",
-        "Tiết 9", "Tiết 10", "Tiết 11", "Tiết 12"
+    PERIODS = ("",) + tuple(
+        f"Tiết {period}" for period in range(1, Constant.DAY_HOURS + 1)
     )
-    PERIOD_TIMES = (
-        "", "9:00 – 10:00", "10:00 – 11:00", "11:00 – 12:00", "12:00 – 13:00",
-        "13:00 – 14:00", "14:00 – 15:00", "15:00 – 16:00", "16:00 – 17:00",
-        "17:00 – 18:00", "18:00 – 19:00", "19:00 – 20:00", "20:00 – 21:00"
+    PERIOD_TIMES = ("",) + tuple(
+        f"{Constant.START_HOUR + offset}:00 – {Constant.START_HOUR + offset + 1}:00"
+        for offset in range(Constant.DAY_HOURS)
     )
     WEEK_DAYS = ("T2", "T3", "T4", "T5", "T6")
     WEEK_DAY_NAMES = ("Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu")
@@ -135,6 +133,50 @@ class HtmlOutput:
             align-items: flex-start;
             justify-content: space-between;
             gap: 24px;
+        }
+
+        .hero-actions {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+            min-width: 170px;
+            max-width: 280px;
+        }
+
+        .rerun-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 11px 16px;
+            border: 1px solid rgba(255, 255, 255, .38);
+            border-radius: 14px;
+            background: #fff;
+            color: #1e3a8a;
+            font: inherit;
+            font-size: .88rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .18);
+            transition: background .15s ease, transform .15s ease, opacity .15s ease;
+        }
+
+        .rerun-button:hover {
+            background: #eff6ff;
+            transform: translateY(-1px);
+        }
+
+        .rerun-button:focus-visible {
+            outline: 3px solid rgba(191, 219, 254, .9);
+            outline-offset: 3px;
+        }
+
+        .rerun-button:disabled {
+            cursor: wait;
+            opacity: .72;
+            transform: none;
         }
 
         .eyebrow {
@@ -630,6 +672,322 @@ class HtmlOutput:
             margin-top: 16px;
         }
 
+        .input-section {
+            margin-top: 28px;
+            overflow: hidden;
+            background: var(--surface);
+            border: 1px solid rgba(226, 232, 240, .95);
+            border-radius: 22px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .input-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px 24px;
+            flex-wrap: wrap;
+            padding: 20px 24px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .input-summary::-webkit-details-marker { display: none; }
+        .input-summary::marker { content: ""; }
+        .input-summary:hover { background: #f8fbff; }
+
+        .input-summary::after {
+            content: "▾";
+            margin-left: 2px;
+            color: var(--muted);
+            font-size: .9rem;
+            transition: transform .15s ease;
+        }
+
+        .input-section[open] .input-summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .input-section[open] .input-summary::after {
+            transform: rotate(180deg);
+        }
+
+        .input-summary h2,
+        .settings-heading h2 {
+            margin: 0;
+            font-size: 1.22rem;
+            letter-spacing: -.01em;
+        }
+
+        .input-summary-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .input-summary-note {
+            margin: 0;
+            color: var(--muted);
+            font-size: .78rem;
+        }
+
+        .input-body {
+            padding: 0 18px 20px;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px 28px;
+            flex-wrap: wrap;
+            padding: 20px 24px;
+        }
+
+        .settings-heading {
+            min-width: 0;
+        }
+
+        .settings-summary-note {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: .78rem;
+            line-height: 1.5;
+        }
+
+        .settings-header-actions {
+            display: flex;
+            flex: 0 0 auto;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .rerun-button--header {
+            border-color: #1d4ed8;
+            background: #1d4ed8;
+            color: #fff;
+            box-shadow: 0 8px 18px rgba(29, 78, 216, .18);
+        }
+
+        .rerun-button--header:hover {
+            background: #1e40af;
+        }
+
+        .settings-details {
+            border-top: 1px solid var(--border);
+        }
+
+        .settings-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 13px 24px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: .78rem;
+            font-weight: 700;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .settings-toggle::-webkit-details-marker { display: none; }
+        .settings-toggle::marker { content: ""; }
+        .settings-toggle:hover { background: #f1f5f9; }
+
+        .settings-toggle::after {
+            content: "▾";
+            color: var(--muted);
+            font-size: .9rem;
+            transition: transform .15s ease;
+        }
+
+        .settings-details[open] .settings-toggle {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-details[open] .settings-toggle::after {
+            transform: rotate(180deg);
+        }
+
+        .settings-body {
+            padding: 18px 24px 22px;
+        }
+
+        .settings-note {
+            margin: 0 0 16px;
+            color: var(--muted);
+            font-size: .84rem;
+            line-height: 1.55;
+        }
+
+        .settings-note strong {
+            color: #334155;
+        }
+
+        .settings-form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+        }
+
+        .setting-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            min-width: 0;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #f8fafc;
+        }
+
+        .setting-label {
+            color: #0f172a;
+            font-size: .82rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .setting-control input {
+            width: 100%;
+            min-width: 0;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #fff;
+            color: #0f172a;
+            font: inherit;
+            font-size: .9rem;
+        }
+
+        .setting-control input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+        }
+
+        .setting-unit {
+            flex: 0 0 auto;
+            color: var(--muted);
+            font-size: .72rem;
+            white-space: nowrap;
+        }
+
+        .setting-help {
+            color: var(--muted);
+            font-size: .7rem;
+            line-height: 1.4;
+        }
+
+        .settings-status {
+            max-width: 340px;
+            margin: 0;
+            min-height: 1.1em;
+            color: var(--muted);
+            font-size: .75rem;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+            text-align: right;
+        }
+
+        .settings-status.error {
+            color: #b91c1c;
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .input-card {
+            min-width: 0;
+            overflow: hidden;
+            background: var(--surface);
+            border: 1px solid rgba(226, 232, 240, .95);
+            border-radius: 18px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .input-card--wide {
+            grid-column: 1 / -1;
+        }
+
+        .input-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .input-card-head h3 {
+            margin: 0;
+            font-size: .92rem;
+        }
+
+        .input-card-head .badge {
+            padding: 4px 10px;
+            font-size: .72rem;
+        }
+
+        .input-table-wrap {
+            overflow-x: auto;
+        }
+
+        .input-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .8rem;
+        }
+
+        .input-table th,
+        .input-table td {
+            padding: 9px 14px;
+            text-align: left;
+            vertical-align: top;
+            border-top: 1px solid var(--border);
+        }
+
+        .input-table thead th {
+            border-top: 0;
+            background: var(--surface-soft);
+            color: var(--muted);
+            font-size: .68rem;
+            letter-spacing: .045em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .input-table tbody tr:hover {
+            background: #f8fbff;
+        }
+
+        .input-table .num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
         .history-section {
             margin-top: 28px;
             overflow: hidden;
@@ -987,6 +1345,7 @@ class HtmlOutput:
             .page { padding: 20px 12px 36px; }
             .hero { padding: 26px 22px 24px; border-radius: 20px; }
             .hero-row { flex-direction: column; }
+            .hero-actions { width: 100%; max-width: none; }
             .score { width: 100%; }
             .room-head { padding: 16px 18px; align-items: flex-start; }
             .room-badges { width: 100%; }
@@ -1024,6 +1383,18 @@ class HtmlOutput:
             .step-body { padding: 12px; }
             .step .rooms { gap: 12px; }
             .step .room-head { padding: 12px 14px; }
+            .input-summary { padding: 16px 14px; }
+            .input-summary h2,
+            .settings-heading h2 { font-size: 1.08rem; }
+            .input-body { padding: 0 12px 16px; }
+            .settings-header { padding: 16px 14px; }
+            .settings-header-actions { width: 100%; align-items: stretch; }
+            .settings-header-actions .rerun-button { width: 100%; }
+            .settings-status { text-align: left; }
+            .settings-toggle { padding: 12px 14px; }
+            .settings-body { padding: 16px 12px; }
+            .input-grid { grid-template-columns: 1fr; }
+            .settings-grid { grid-template-columns: 1fr; }
         }
 
         @media print {
@@ -1066,8 +1437,11 @@ class HtmlOutput:
                 box-shadow: none;
             }
 
+            .rerun-button { display: none; }
+
             .result-section { margin-top: 18px; }
             .result-section .rooms { margin-top: 12px; }
+            .input-section,
             .history-section,
             .steps-section { display: none; }
 
@@ -1086,6 +1460,113 @@ class HtmlOutput:
             * { transition: none !important; }
         }
     </style>"""
+
+    PAGE_SCRIPT = """<script>
+        (() => {
+            const form = document.getElementById("ga-parameters");
+            const buttons = Array.from(document.querySelectorAll("[data-rerun]"));
+            const statuses = Array.from(
+                document.querySelectorAll("[data-rerun-status]")
+            );
+            if (!buttons.length || !statuses.length) return;
+
+            const setStatus = (message, isError = false) => {
+                statuses.forEach(status => {
+                    status.textContent = message;
+                    status.classList.toggle("error", isError);
+                });
+            };
+
+            const setBusy = busy => {
+                buttons.forEach(button => {
+                    button.disabled = busy;
+                });
+            };
+
+            const isFile = window.location.protocol === "file:";
+            if (isFile) {
+                setStatus("Mở báo cáo qua ConsoleApp.py để dùng nút này.", true);
+            }
+
+            const readParameters = () => {
+                if (!form) return {};
+                if (!form.checkValidity()) {
+                    const details = form.closest("details");
+                    if (details) details.open = true;
+                    form.reportValidity();
+                    throw new Error("Vui lòng kiểm tra lại thông số.");
+                }
+                const parameters = {};
+                form.querySelectorAll("input[name]").forEach(input => {
+                    const value = Number(input.value);
+                    if (!Number.isFinite(value)) {
+                        throw new Error(
+                            "Giá trị của " + input.name + " không hợp lệ."
+                        );
+                    }
+                    parameters[input.name] = value;
+                });
+                return parameters;
+            };
+
+            const rerun = async () => {
+                if (isFile) {
+                    setStatus(
+                        "Hãy chạy ConsoleApp.py để mở báo cáo qua máy chủ cục bộ rồi thử lại.",
+                        true
+                    );
+                    return;
+                }
+
+                let parameters;
+                try {
+                    parameters = readParameters();
+                } catch (error) {
+                    setStatus(error.message, true);
+                    return;
+                }
+
+                setBusy(true);
+                setStatus("Đang chạy lại thuật toán…");
+                try {
+                    const response = await fetch("/rerun", {
+                        method: "POST",
+                        headers: {
+                            "Accept": "application/json",
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ parameters }),
+                        cache: "no-store",
+                    });
+                    let data = {};
+                    try {
+                        data = await response.json();
+                    } catch (error) {
+                        // Giữ thông báo mặc định nếu máy chủ không trả JSON.
+                    }
+                    if (!response.ok) {
+                        throw new Error(data.error || ("HTTP " + response.status));
+                    }
+                    setStatus("Hoàn tất. Đang tải lại báo cáo…");
+                    window.location.reload();
+                } catch (error) {
+                    const message = error instanceof TypeError
+                        ? "Không kết nối được máy chủ. Hãy chạy ConsoleApp.py rồi mở lại trang."
+                        : error.message;
+                    setStatus("Không chạy lại được: " + message, true);
+                    setBusy(false);
+                }
+            };
+
+            buttons.forEach(button => button.addEventListener("click", rerun));
+            if (form) {
+                form.addEventListener("submit", event => {
+                    event.preventDefault();
+                    rerun();
+                });
+            }
+        })();
+    </script>"""
 
     @staticmethod
     def getCriteriaBadges(criterias, ci):
@@ -1663,12 +2144,245 @@ class HtmlOutput:
         )
 
     @staticmethod
-    def getResult(solution, history=None):
-        room_sections = HtmlOutput.getRoomSections(solution)
-        return HtmlOutput.getDocument(solution, room_sections, history=history)
+    def getInputTable(headers, rows, aligns=None):
+        """Dựng một bảng HTML nhỏ cho phần dữ liệu đầu vào."""
+        if aligns is None:
+            aligns = ["l"] * len(headers)
+
+        def align_class(align):
+            return ' class="num"' if align == "r" else ""
+
+        head_cells = "".join(
+            f'<th scope="col"{align_class(aligns[i])}>{html.escape(str(header))}</th>'
+            for i, header in enumerate(headers)
+        )
+        body_rows = []
+        for row in rows:
+            cells = "".join(
+                f'<td{align_class(aligns[i])}>{html.escape(str(value))}</td>'
+                for i, value in enumerate(row)
+            )
+            body_rows.append(f"<tr>{cells}</tr>")
+
+        return (
+            '<div class="input-table-wrap">'
+            '<table class="input-table">'
+            f'<thead><tr>{head_cells}</tr></thead>'
+            f'<tbody>{"".join(body_rows)}</tbody>'
+            '</table>'
+            '</div>'
+        )
 
     @staticmethod
-    def getDocument(solution, room_sections, history=None):
+    def getInputCard(title, count, table_html, wide=False):
+        """Tạo một thẻ chứa bảng dữ liệu đầu vào."""
+        card_class = "input-card input-card--wide" if wide else "input-card"
+        return (
+            f'<article class="{card_class}">'
+            '<div class="input-card-head">'
+            f'<h3>{html.escape(title)}</h3>'
+            f'<span class="badge badge-muted">{count}</span>'
+            '</div>'
+            f'{table_html}'
+            '</article>'
+        )
+
+    @staticmethod
+    def getInputSection(solution):
+        """Hiển thị danh sách giảng viên, môn học, phòng học và nhóm sinh viên."""
+        configuration = solution.configuration
+        classes = list(configuration.courseClasses)
+
+        professors = sorted(configuration._professors.values(), key=lambda item: item.Id)
+        professor_rows = []
+        for professor in professors:
+            courses = sorted(
+                {cc.Course.Name for cc in professor.CourseClasses},
+                key=str.casefold,
+            )
+            professor_rows.append([
+                professor.Id,
+                professor.Name,
+                len(professor.CourseClasses),
+                ", ".join(courses) if courses else "—",
+            ])
+
+        courses = sorted(configuration._courses.values(), key=lambda item: item.Id)
+        course_rows = []
+        for course in courses:
+            course_classes = [cc for cc in classes if cc.Course.Id == course.Id]
+            course_rows.append([
+                course.Id,
+                course.Name,
+                len(course_classes),
+                sum(cc.Duration for cc in course_classes),
+            ])
+
+        capacity = Constant.DAY_HOURS * Constant.DAYS_NUM
+        rooms = sorted(configuration._rooms.values(), key=lambda item: item.Id)
+        room_rows = [
+            [room.Id, room.Name, room.NumberOfSeats, f"{capacity} giờ"]
+            for room in rooms
+        ]
+
+        groups = sorted(configuration._studentGroups.values(), key=lambda item: item.Id)
+        group_rows = [
+            [
+                group.Id,
+                group.Name,
+                group.NumberOfStudents,
+                len(group.CourseClasses),
+                sum(cc.Duration for cc in group.CourseClasses),
+            ]
+            for group in groups
+        ]
+
+        cards = [
+            HtmlOutput.getInputCard(
+                "Giảng viên",
+                len(professor_rows),
+                HtmlOutput.getInputTable(
+                    ["Mã", "Họ tên", "Số lớp", "Môn học phụ trách"],
+                    professor_rows,
+                    ["r", "l", "r", "l"],
+                ),
+            ),
+            HtmlOutput.getInputCard(
+                "Môn học",
+                len(course_rows),
+                HtmlOutput.getInputTable(
+                    ["Mã", "Môn học", "Số lớp", "Số giờ/tuần"],
+                    course_rows,
+                    ["r", "l", "r", "r"],
+                ),
+            ),
+            HtmlOutput.getInputCard(
+                "Phòng học",
+                len(room_rows),
+                HtmlOutput.getInputTable(
+                    ["Mã", "Phòng học", "Số chỗ", "Sức chứa/tuần"],
+                    room_rows,
+                    ["r", "l", "r", "r"],
+                ),
+            ),
+            HtmlOutput.getInputCard(
+                "Nhóm sinh viên",
+                len(group_rows),
+                HtmlOutput.getInputTable(
+                    ["Mã", "Nhóm sinh viên", "Số SV", "Số lớp", "Tổng giờ"],
+                    group_rows,
+                    ["r", "l", "r", "r", "r"],
+                ),
+            ),
+        ]
+
+        summary_counts = (
+            f"{len(professor_rows)} giảng viên · {len(course_rows)} môn học · "
+            f"{len(room_rows)} phòng · {len(group_rows)} nhóm"
+        )
+
+        return (
+            '<details class="input-section" aria-labelledby="input-title">'
+            '<summary class="input-summary">'
+            '<div>'
+            '<p class="section-kicker">Dữ liệu nguồn</p>'
+            '<h2 id="input-title">Dữ liệu đầu vào</h2>'
+            '</div>'
+            '<div class="input-summary-meta">'
+            f'<span class="input-summary-note">{summary_counts} · '
+            'nhấn để mở hoặc thu gọn</span>'
+            '</div>'
+            '</summary>'
+            '<div class="input-body">'
+            f'<div class="input-grid">{"".join(cards)}</div>'
+            '</div>'
+            '</details>'
+        )
+
+    @staticmethod
+    def getSettingsSection(parameters=None):
+        """Khối điều khiển thông số; nút chạy lại nằm ngoài phần thu gọn."""
+        values = normalize(parameters)
+        fields = []
+        for field in FIELDS:
+            name = field["name"]
+            field_id = "param-{}".format(name)
+            help_id = "{}-help".format(field_id)
+            input_mode = "decimal" if field["kind"] == "float" else "numeric"
+            unit = ""
+            if field["unit"]:
+                unit = '<span class="setting-unit">{}</span>'.format(
+                    html.escape(field["unit"])
+                )
+            fields.append(
+                '<label class="setting-field" for="{}">'
+                '<span class="setting-label">{}</span>'
+                '<span class="setting-control">'
+                '<input id="{}" name="{}" type="number" value="{}" '
+                'min="{}" max="{}" step="{}" inputmode="{}" '
+                'aria-describedby="{}" autocomplete="off" required>'
+                '{}</span>'
+                '<span class="setting-help" id="{}">{}</span>'
+                '</label>'.format(
+                    field_id,
+                    html.escape(field["label"]),
+                    field_id,
+                    name,
+                    format_value(values[name]),
+                    format_value(field["min"]),
+                    format_value(field["max"]),
+                    format_value(field["step"]),
+                    input_mode,
+                    help_id,
+                    unit,
+                    help_id,
+                    html.escape(field["help"]),
+                )
+            )
+
+        return (
+            '<section class="input-section settings-section" '
+            'aria-labelledby="settings-title">'
+            '<div class="settings-header">'
+            '<div class="settings-heading">'
+            '<p class="section-kicker">Điều khiển</p>'
+            '<h2 id="settings-title">Thông số thuật toán</h2>'
+            '<p class="settings-summary-note">{} · thay đổi áp dụng cho lần chạy lại</p>'
+            '</div>'
+            '<div class="settings-header-actions">'
+            '<button class="rerun-button rerun-button--header" id="rerun-button" '
+            'type="button" data-rerun '
+            'title="Chạy lại thuật toán với thông số hiện tại">'
+            '↻ Chạy lại</button>'
+            '<p class="settings-status" id="settings-status" '
+            'data-rerun-status role="status" aria-live="polite"></p>'
+            '</div>'
+            '</div>'
+            '<details class="settings-details" open>'
+            '<summary class="settings-toggle">Thông số chi tiết</summary>'
+            '<div class="settings-body">'
+            '<p class="settings-note">Điều chỉnh thông số cho lần chạy kế tiếp, '
+            'sau đó bấm <strong>↻ Chạy lại</strong> ở phần đầu khối này.</p>'
+            '<form id="ga-parameters" class="settings-form" autocomplete="off">'
+            '<div class="settings-grid">{}</div>'
+            '</form>'
+            '</div>'
+            '</details>'
+            '</section>'
+        ).format(summary(values), "".join(fields))
+
+    @staticmethod
+    def getResult(solution, history=None, parameters=None):
+        room_sections = HtmlOutput.getRoomSections(solution)
+        return HtmlOutput.getDocument(
+            solution,
+            room_sections,
+            history=history,
+            parameters=parameters,
+        )
+
+    @staticmethod
+    def getDocument(solution, room_sections, history=None, parameters=None):
         configuration = solution.configuration
         total_hours = sum(cc.Duration for cc in configuration.courseClasses)
 
@@ -1706,8 +2420,11 @@ class HtmlOutput:
         generated_at = datetime.now().strftime("%H:%M · %d/%m/%Y")
         subtitle = (
             f"Kết quả xếp lịch cho {Constant.DAYS_NUM} ngày làm việc, "
-            f"{Constant.DAY_HOURS} tiết mỗi ngày."
+            f"{Constant.DAY_HOURS} tiết mỗi ngày, từ {Constant.START_HOUR}:00 "
+            f"đến {Constant.START_HOUR + Constant.DAY_HOURS}:00."
         )
+        settings_html = HtmlOutput.getSettingsSection(parameters)
+        input_html = HtmlOutput.getInputSection(solution)
         history_html = HtmlOutput.getHistorySection(history)
         steps_html = HtmlOutput.getStepsSection(history)
 
@@ -1730,11 +2447,14 @@ class HtmlOutput:
             '<h1>Thời khóa biểu tuần</h1>\n'
             f'<p class="subtitle">{subtitle}</p>\n'
             '</div>\n'
+            '<div class="hero-actions">\n'
             f'{score_html}\n'
+            '</div>\n'
             '</div>\n'
             f'<ul class="stats">{stats_html}</ul>\n'
             '</div>\n'
             '</header>\n'
+            f'{settings_html}\n'
             '<section class="legend" aria-label="Chú thích tiêu chí">\n'
             '<div class="legend-head">\n'
             '<h2>Chú thích</h2>\n'
@@ -1747,6 +2467,7 @@ class HtmlOutput:
             '</div>\n'
             f'<ul class="legend-items">{legend_items}</ul>\n'
             '</section>\n'
+            f'{input_html}\n'
             '<section class="result-section" aria-labelledby="result-title">\n'
             '<div class="section-head">\n'
             '<div>\n'
@@ -1766,6 +2487,7 @@ class HtmlOutput:
             f'<span>Cập nhật lúc {generated_at}</span>\n'
             '</footer>\n'
             '</main>\n'
+            f'{HtmlOutput.PAGE_SCRIPT}\n'
             '</body>\n'
             '</html>\n'
         )

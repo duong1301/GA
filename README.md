@@ -46,7 +46,7 @@ Việc đầu tiên cần cân nhắc khi làm việc với thuật toán di tru
 
 ## Cách biểu diễn
 
-Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Ta cũng giả thiết rằng lớp học không được bắt đầu trước 9 giờ sáng và phải kết thúc trước hoặc đúng 21 giờ (tổng cộng 12 tiết), và ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày).
+Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Ta cũng giả thiết rằng lớp học không được bắt đầu trước 7 giờ sáng và phải kết thúc trước hoặc đúng 19 giờ (tổng cộng 12 tiết), và ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày). Giờ bắt đầu và số tiết mỗi ngày được cấu hình trong `model/Constant.py` qua `START_HOUR` và `DAY_HOURS`.
 
 Kết quả sẽ được hiển thị dưới dạng bảng HTML. Chương trình sẽ mở trình duyệt mặc định để trình bày thời khóa biểu một cách rõ ràng.
 
@@ -153,7 +153,7 @@ Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - tr�
 
 # Hiệu năng
 
-Thời gian chạy phụ thuộc vào dữ liệu đầu vào, kích thước quần thể và số thế hệ. Chạy `python ConsoleApp.py` để đo thời gian thực tế; tăng `maxStagnation` hoặc `maxIterations` nếu muốn thuật toán tìm kiếm lâu hơn.
+Thời gian chạy phụ thuộc vào dữ liệu đầu vào, kích thước quần thể và số thế hệ. Chạy `python ConsoleApp.py` để đo thời gian thực tế; có thể tăng `maxStagnation` hoặc `maxIterations` trong khối **Thông số thuật toán** trên báo cáo HTML nếu muốn thuật toán tìm kiếm lâu hơn.
 
 # Cách chạy
 
@@ -163,11 +163,41 @@ Thời gian chạy phụ thuộc vào dữ liệu đầu vào, kích thước qu
 python -m pip install -r requirements.txt
 python ConsoleApp.py                    # dùng tệp GaSchedule.json mặc định
 python ConsoleApp.py du_lieu_rieng.json # dùng tệp cấu hình khác
+python ConsoleApp.py --no-serve         # chỉ tạo tệp HTML tĩnh
 ```
 
-Chương trình in tiến trình tối ưu hoá ra màn hình, sau khi hoàn thành sẽ tạo tệp kết quả `.htm` trong thư mục tạm của hệ điều hành và tự mở bằng trình duyệt mặc định.
+Chương trình in tiến trình tối ưu hoá ra màn hình, sau khi hoàn thành sẽ tạo tệp kết quả `.htm` trong thư mục tạm của hệ điều hành và mở bằng trình duyệt mặc định. Báo cáo được phục vụ qua một máy chủ nhỏ trên `127.0.0.1` để nút **Chạy lại** hoạt động.
 
-`ConsoleApp.py` hiện dùng `GeneticAlgorithm` với mặc định tối đa 1000 thế hệ, dừng khi fitness vượt `0.999` hoặc sau 100 thế hệ liên tiếp không cải thiện. Có thể tăng `maxStagnation` khi khởi tạo nếu muốn thuật toán tìm kiếm lâu hơn.
+`ConsoleApp.py` hiện dùng `GeneticAlgorithm` với mặc định tối đa 1000 thế hệ, dừng khi fitness vượt `0.999` hoặc sau 100 thế hệ liên tiếp không cải thiện. Các thông số này có thể chỉnh trực tiếp trên báo cáo HTML; xem mục **Thông số thuật toán trên giao diện** bên dưới.
+
+## Chạy lại từ trang HTML
+
+Khi chạy ở chế độ mặc định, nút **↻ Chạy lại** nằm ở phần đầu khối **Thông số thuật toán** phía trên báo cáo. Bấm nút này để:
+
+- chạy lại thuật toán với đúng tệp cấu hình đang dùng;
+- đọc lại tệp JSON nếu bạn vừa sửa dữ liệu;
+- cập nhật cả trang đang mở và tệp `.htm` trong thư mục tạm.
+
+Cần giữ cửa sổ dòng lệnh mở trong lúc dùng nút; nhấn `Ctrl+C` để dừng máy chủ. Nếu chạy với `--no-serve` hoặc mở trực tiếp tệp `.htm`, nút sẽ nhắc chạy `ConsoleApp.py` để bật máy chủ cục bộ.
+
+## Thông số thuật toán trên giao diện
+
+Khối **Thông số thuật toán** nằm trên phần chú thích và dữ liệu đầu vào, mặc định mở sẵn để chỉnh ngay. Nút **↻ Chạy lại** nằm ở phần đầu khối, bên ngoài phần thông số chi tiết; bấm nút này sau khi chỉnh các giá trị dùng cho lần chạy kế tiếp.
+
+| Thông số | Mặc định | Ý nghĩa |
+|---|---:|---|
+| Kích thước quần thể | 100 | Số cá thể trong mỗi thế hệ. |
+| Giữ lại cá thể tốt | 5 | Số cá thể tốt nhất không bị thay thế. |
+| Thay thế mỗi thế hệ | 8 | Số cá thể được thay bằng con lai mỗi thế hệ. |
+| Điểm lai ghép | 2 | Số điểm cắt khi lai ghép; tự giới hạn theo số lớp. |
+| Mức đột biến | 2 | Số lớp bị thay đổi trong một lần đột biến. |
+| Xác suất lai ghép | 80% | Tỉ lệ chọn phép lai ghép. |
+| Xác suất đột biến | 3% | Tỉ lệ chọn phép đột biến. |
+| Số thế hệ tối đa | 1000 | Giới hạn số thế hệ của một lần chạy. |
+| Dừng khi không cải thiện | 100 | Dừng sau bấy nhiêu thế hệ fitness không tăng. |
+| Fitness mục tiêu | 0.999 | Dừng sớm khi fitness vượt giá trị này. |
+
+Các giá trị được kiểm tra ở cả trình duyệt và máy chủ. Nếu một tổ hợp không hợp lệ (ví dụ giữ lại quá nhiều cá thể so với kích thước quần thể), chương trình sẽ tự giới hạn lại và hiển thị giá trị thực tế sau khi chạy. Thông số chỉ ảnh hưởng đến lần chạy, không được ghi vào tệp JSON cấu hình.
 
 ## Cách dùng như một thư viện
 
@@ -193,7 +223,7 @@ alg.run()
 html_result = HtmlOutput.getResult(alg.result, history=Tracer.get_history())
 ```
 
-`HtmlOutput.getResult()` trả về một tài liệu HTML hoàn chỉnh (có `<!DOCTYPE html>`), có thể ghi trực tiếp ra tệp `.html` rồi mở bằng trình duyệt.
+`HtmlOutput.getResult()` trả về một tài liệu HTML hoàn chỉnh (có `<!DOCTYPE html>`), có thể ghi trực tiếp ra tệp `.html` rồi mở bằng trình duyệt. Khi dùng theo cách này, trang là tĩnh; nút **Chạy lại** chỉ hoạt động khi báo cáo được phục vụ qua máy chủ cục bộ của `ConsoleApp.py`.
 
 Nếu truyền thêm `history=Tracer.get_history()`, tài liệu HTML sẽ có:
 - biểu đồ đường **Fitness qua các thế hệ** thể hiện mức tăng/giảm của fitness qua mọi thế hệ đã chạy, kèm các chỉ số bắt đầu, cao nhất và cuối cùng;
@@ -209,14 +239,17 @@ Có thể thay `GeneticAlgorithm` bằng bất kỳ thuật toán nào khác tro
 
 # Giải thích kết quả xuất ra
 
-Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS, không cần mạng) gồm:
+Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaScript, không cần mạng) gồm:
 
-- Phần tiêu đề, thống kê độ phù hợp và chú thích 4 tiêu chí.
+- Phần tiêu đề và thống kê độ phù hợp.
+- **Thông số thuật toán**: khối nằm trên phần chú thích và dữ liệu đầu vào, mở sẵn để chỉnh kích thước quần thể, lai ghép, đột biến, điều kiện dừng và fitness mục tiêu; nút **↻ Chạy lại** nằm ở phần đầu khối.
+- **Chú thích 4 tiêu chí** với ký hiệu `P/C/G/S`, được giữ cố định khi cuộn trang.
 - **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 12 hàng tương ứng 12 tiết và 5 cột tương ứng từ thứ hai đến thứ sáu.
+- **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học, phòng học và nhóm sinh viên, kèm số lớp, số giờ và sức chứa để đối chiếu với kết quả xếp lịch.
 - **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
 - **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/C/G/S` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
 
-Giao diện dùng thẻ (card) cho từng phòng, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; khi in chỉ giữ lại phần thời khóa biểu cuối cùng. Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
+Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần thời khóa biểu cuối cùng. Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
 
 - Tên môn học, tên giảng viên, các nhóm sinh viên tham dự và nhãn thời lượng (ví dụ `2 tiết`).
 - Nếu nhiều lớp cùng được xếp vào một phòng, cùng ngày và cùng tiết (vi phạm tiêu chí `P`), tất cả vẫn được hiển thị: các thẻ lớp học xếp chồng trong ô kèm nhãn `Trùng phòng`; những tiết tiếp theo của lớp kéo dài được đánh dấu `Tiếp tiết`.
@@ -277,9 +310,9 @@ THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 10
   +------------------------------------------------------------------------------------
   | Tiết              | T2                        | T3                        | ...
   +------------------------------------------------------------------------------------
-  | Tiết 2 (10-11)    |                           | Lập trình Python / Đỗ Thị | ...
-  | Tiết 3 (11-12)    | Quản trị và bảo trì hệ thố| ^                         | ...
-  | Tiết 4 (12-13)    |                           | ^                         | ...
+  | Tiết 2 (8-9)      |                           | Lập trình Python / Đỗ Thị | ...
+  | Tiết 3 (9-10)     | Quản trị và bảo trì hệ thố| ^                         | ...
+  | Tiết 4 (10-11)    |                           | ^                         | ...
   +------------------------------------------------------------------------------------
 ```
 
