@@ -231,7 +231,7 @@ Nếu truyền thêm `history=Tracer.get_history()`, tài liệu HTML sẽ có:
 
 Gọi `Tracer.reset()` trước khi chạy để xóa lịch sử của lần chạy trước. Nếu không truyền `history`, HTML chỉ hiển thị kết quả cuối cùng như trước đây. Mặc định tối đa 60 bước tiêu biểu được vẽ lịch chi tiết; có thể đổi bằng `HtmlOutput.MAX_STEP_PANELS`.
 
-Có thể thay `GeneticAlgorithm` bằng bất kỳ thuật toán nào khác trong thư mục `algorithm/`, chẳng hạn `Cso`, `NsgaII`, `Ngra`, `NsgaIII`, `GaQpso`, `Fpa`, `Dlba`, `APNsgaIII` hoặc `Amga2`.
+Project hiện chỉ dùng `GeneticAlgorithm`; các thuật toán tối ưu đa mục tiêu và siêu heuristic khác đã được lược bỏ để tập trung vào GA.
 
 # Thư viện yêu cầu
 

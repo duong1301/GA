@@ -1,4 +1,4 @@
-"""Chạy GASchedule (CSO), in thời khóa biểu và kiểm tra tính hợp lệ."""
+"""Chạy GASchedule (GA), in thời khóa biểu và kiểm tra tính hợp lệ."""
 import pathlib
 import sys
 from collections import defaultdict
@@ -12,7 +12,7 @@ for _s in (sys.stdout, sys.stderr):
 from model.Configuration import Configuration
 from model.Reservation import Reservation
 from model.Constant import Constant
-from algorithm.Cso import Cso
+from algorithm.GeneticAlgorithm import GeneticAlgorithm
 
 DAYS = ("T2", "T3", "T4", "T5", "T6")
 PERIODS = [""] + [
@@ -26,8 +26,8 @@ config.parseFile(str(pathlib.Path().absolute()) + "/GaSchedule.json")
 
 print(f"Số phòng: {config.numberOfRooms} | Số giảng viên: {config.numberOfProfessors} | "
       f"Số nhóm SV: {config.numberOfStudentGroups} | Số buổi học: {config.numberOfCourseClasses}")
-print("Đang chạy thuật toán Cso ...\n")
-alg = Cso(config)
+print("Đang chạy thuật toán GA ...\n")
+alg = GeneticAlgorithm(config)
 alg.run()
 best = alg.result
 print(f"\nĐộ phù hợp cuối cùng: {best.fitness:.6f}\n")

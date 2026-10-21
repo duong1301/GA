@@ -17,10 +17,6 @@ for _stream in (sys.stdout, sys.stderr):
 from model.AlgorithmParameters import ParameterError, normalize as normalize_parameters
 from model.Configuration import Configuration
 from algorithm.GeneticAlgorithm import GeneticAlgorithm
-# from algorithm.APNsgaIII import APNsgaIII
-# from algorithm.Cso import Cso
-# from algorithm.GaQpso import GaQpso
-# from algorithm.Amga2 import Amga2
 from HtmlOutput import HtmlOutput
 from Trace import Trace as Tracer
 
@@ -74,7 +70,6 @@ def run_schedule(file_name, parameters=None):
         replaceByGeneration=parameters["replaceByGeneration"],
         trackBest=parameters["trackBest"],
     )
-    # alg = GaQpso(configuration)
     print("GaSchedule phiên bản 1.2.6. Lập thời khóa biểu bằng", alg, ".\n")
     print("Bản quyền (C) 2022 - 2024 Miller Cy Chan.\n")
     print(

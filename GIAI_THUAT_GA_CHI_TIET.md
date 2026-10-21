@@ -2,7 +2,7 @@
 
 > Tài liệu này chỉ trình bày **thuật toán di truyền đơn mục tiêu (Genetic Algorithm — GA)** đang được dùng trong `ConsoleApp.py`, tức lớp `algorithm/GeneticAlgorithm.py` và các phần của `model/Schedule.py`, `model/Criteria.py`, `model/Reservation.py` mà GA gọi tới.
 >
-> Các thuật toán khác trong thư mục `algorithm/` (NSGA-II, NSGA-III, AMGA2, CSO, FPA, DLBA, GAQPSO, NRGA…) không thuộc phạm vi tài liệu này.
+> Project hiện chỉ còn GA; các thuật toán tối ưu đa mục tiêu và siêu heuristic khác đã được lược bỏ khỏi thư mục `algorithm/`.
 
 ---
 
@@ -311,7 +311,7 @@ Vì tiêu chí `C` chỉ bị trừ `0.5` điểm, mỗi lớp luôn còn ít nh
 4. F = score / (4N)
 ```
 
-Trong code, `V` chính là `self._objectives`, còn `4N` là `len(self._criteria)`.
+Trong code GA-only, `V` chỉ là ký hiệu toán học dùng để giải thích công thức; vòng lặp `calculateFitness` cộng trực tiếp điểm vào `score` và không lưu `V` thành thuộc tính. `4N` tương ứng `len(self._criteria)`.
 
 ### 3.4. Kiểm tra từng tiêu chí trong code
 
@@ -1389,7 +1389,6 @@ Trường hợp xấu nhất `Occ` có thể lớn, nhưng trong dữ liệu th�
 - slots: D × H × R danh sách
 - classes: N cặp khóa-giá trị
 - criteria: 4N boolean
-- objectives: 4 số
 - quần thể: n nhiễm sắc thể, mỗi nhiễm sắc thể có slots + classes riêng
 ```
 
