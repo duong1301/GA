@@ -16,23 +16,28 @@ class HtmlOutput:
     COLOR2 = "#b91c1c"
     # Số bước tối đa hiển thị thời khóa biểu chi tiết trong file HTML.
     MAX_STEP_PANELS = 60
-    # Ký hiệu viết tắt của 2 tiêu chí kiểm tra ràng buộc:
-    #   P = Phòng học   G = Giảng viên
-    CRITERIAS = ('P', 'G')
+    # Ký hiệu viết tắt của 3 tiêu chí kiểm tra ràng buộc:
+    #   P = Phòng học   G = Giảng viên   N = Nghỉ trưa
+    CRITERIAS = ('P', 'G', 'N')
     CRITERIA_LABELS = (
         "Phòng không trùng lịch",
         "Giảng viên không trùng lịch",
+        "Không xếp giờ vào khung nghỉ trưa 12h-13h",
     )
     OK_DESCR = (
         "Phòng học không bị trùng lịch",
         "Giảng viên không bị trùng lịch dạy",
+        "Lớp không rơi vào khung nghỉ trưa 12h-13h",
     )
     FAIL_DESCR = (
         "Phòng học bị trùng lịch",
         "Giảng viên bị trùng lịch dạy",
+        "Lớp bị xếp vào khung nghỉ trưa 12h-13h",
     )
     PERIODS = ("",) + tuple(
-        f"Tiết {period}" for period in range(1, Constant.DAY_HOURS + 1)
+        "Nghỉ trưa" if period - 1 == Constant.LUNCH_PERIOD
+        else f"Tiết {period}"
+        for period in range(1, Constant.DAY_HOURS + 1)
     )
     PERIOD_TIMES = ("",) + tuple(
         f"{Constant.START_HOUR + offset}:00 – {Constant.START_HOUR + offset + 1}:00"
@@ -510,6 +515,17 @@ class HtmlOutput:
         .schedule td.empty { background: #fff; }
 
         .schedule tbody tr:nth-child(even) td.empty { background: #fbfcfe; }
+
+        /* Hàng khung giờ nghỉ trưa 12h-13h */
+        .schedule tbody tr.lunch > .period .period-name {
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .schedule tbody tr.lunch > td.empty {
+            background: repeating-linear-gradient(
+                135deg, #f8fafc, #f8fafc 9px, #eef2f7 9px, #eef2f7 18px);
+        }
 
         .schedule td.filled {
             background: #fff;
@@ -1586,7 +1602,7 @@ class HtmlOutput:
 
     @staticmethod
     def getCriteriaBadges(criterias, ci):
-        """Tạo 2 huy hiệu tiêu chí P/G cho một lớp học."""
+        """Tạo các huy hiệu tiêu chí (P/G/N) cho một lớp học."""
         sb = ['<div class="crits">']
         for i, letter in enumerate(HtmlOutput.CRITERIAS):
             passed = bool(criterias[ci + i])
@@ -1682,7 +1698,7 @@ class HtmlOutput:
     @staticmethod
     def getScheduleTable(key, entries_by_slot, overlapping_slots,
                          overlap_label="Trùng phòng", caption=""):
-        """Dựng bảng lịch 12 tiết × 5 ngày cho một khóa (phòng hoặc giảng viên)."""
+        """Dựng bảng lịch theo ngày (gồm cả khung nghỉ trưa) cho khóa/phòng/GV."""
         rows = []
         covered = {
             dayId: set()
@@ -1742,9 +1758,10 @@ class HtmlOutput:
                 content = f'<div class="slot-stack">{"".join(cards)}</div>'
                 cells.append(f'<td class="slot filled conflict">{content}</td>')
 
+            is_lunch = periodId - 1 == Constant.LUNCH_PERIOD
             rows.append(
-                '<tr>'
-                f'<th class="period" scope="row">'
+                '<tr{}>'.format(' class="lunch"' if is_lunch else '')
+                + f'<th class="period" scope="row">'
                 f'<span class="period-name">{HtmlOutput.PERIODS[periodId]}</span>'
                 f'<span class="period-time">{HtmlOutput.PERIOD_TIMES[periodId]}</span>'
                 '</th>'
@@ -2253,8 +2270,8 @@ class HtmlOutput:
                 '</span>'
                 f'<span class="step-meter" aria-hidden="true">'
                 f'<span style="width:{percent:.1f}%"></span></span>'
-                '<span class="step-counts" aria-label="Số lớp đạt các tiêu chí '
-                f'P, G">{counts_html}</span>'
+                f'<span class="step-counts" aria-label="Số lớp đạt các tiêu chí '
+                f"{', '.join(HtmlOutput.CRITERIAS)}\">{counts_html}</span>"
                 f'<span class="step-score">{percent:.1f}%</span>'
                 '</summary>'
                 '<div class="step-body">'
@@ -2362,7 +2379,7 @@ class HtmlOutput:
                 sum(cc.Duration for cc in course_classes),
             ])
 
-        capacity = Constant.DAY_HOURS * Constant.DAYS_NUM
+        capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM
         rooms = sorted(configuration._rooms.values(), key=lambda item: item.Id)
         room_rows = [
             [room.Id, room.Name, f"{capacity} giờ"]
@@ -2545,8 +2562,12 @@ class HtmlOutput:
         generated_at = datetime.now().strftime("%H:%M · %d/%m/%Y")
         subtitle = (
             f"Kết quả xếp lịch cho {Constant.DAYS_NUM} ngày làm việc, "
-            f"{Constant.DAY_HOURS} tiết mỗi ngày, từ {Constant.START_HOUR}:00 "
-            f"đến {Constant.START_HOUR + Constant.DAY_HOURS}:00."
+            f"mỗi ngày 2 buổi × {Constant.TEACHING_HOURS // 2} tiết "
+            f"(sáng {Constant.START_HOUR}:00–{Constant.START_HOUR + Constant.LUNCH_PERIOD}:00, "
+            f"chiều {Constant.START_HOUR + Constant.LUNCH_PERIOD + 1}:00–"
+            f"{Constant.START_HOUR + Constant.DAY_HOURS}:00). "
+            f"Khung {Constant.START_HOUR + Constant.LUNCH_PERIOD}:00–"
+            f"{Constant.START_HOUR + Constant.LUNCH_PERIOD + 1}:00 là giờ nghỉ trưa."
         )
         settings_html = HtmlOutput.getSettingsSection(parameters)
         input_html = HtmlOutput.getInputSection(solution)

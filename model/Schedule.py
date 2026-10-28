@@ -6,8 +6,16 @@ from numpy.random import randint as randrange
 
 import numpy as np
 
+
 # Nhiễm sắc thể lịch
 class Schedule:
+    # Chọn ngẫu nhiên thời gian bắt đầu sao cho lớp không rơi vào khung nghỉ trưa
+    @staticmethod
+    def randomTime(dur):
+        times = [t for t in range(Constant.DAY_HOURS - dur + 1)
+                 if not (t <= Constant.LUNCH_PERIOD < t + dur)]
+        return times[randrange(len(times))]
+
     # Khởi tạo nhiễm sắc thể với khối cấu hình (thiết lập của nhiễm sắc thể)
     def __init__(self, configuration):
         self._configuration = configuration
@@ -54,7 +62,7 @@ class Schedule:
 
             day = randrange(DAYS_NUM)
             room = randrange(nr)
-            time = randrange(DAY_HOURS - dur)
+            time = Schedule.randomTime(dur)
             reservation = Reservation.getReservation(nr, day, time, room)
 
             if positions is not None:
@@ -152,7 +160,7 @@ class Schedule:
         if reservation2 is None:
             day = randrange(DAYS_NUM)
             room = randrange(nr)
-            time = randrange(DAY_HOURS - dur)
+            time = Schedule.randomTime(dur)
             reservation2 = Reservation.getReservation(nr, day, time, room)
 
         reservation2_index = hash(reservation2)
@@ -222,6 +230,12 @@ class Schedule:
 
             # các giảng viên không có lớp học phần nào trùng lịch?
             criteria[ci + 1] = not po
+
+            # kiểm tra lớp học phần có rơi vào khung giờ nghỉ trưa (12h-13h) không
+            lunch = Criteria.isInLunchBreak(time, dur)
+
+            # lớp học phần có xếp ngoài khung nghỉ trưa không?
+            criteria[ci + 2] = not lunch
 
             for i in range(len(Criteria.weights)):
                 if criteria[ci + i]:

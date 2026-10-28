@@ -16,8 +16,11 @@ from algorithm.GeneticAlgorithm import GeneticAlgorithm
 
 DAYS = ("T2", "T3", "T4", "T5", "T6")
 PERIODS = [""] + [
-    f"Tiết {period} ({Constant.START_HOUR + period - 1}-"
+    f"Nghỉ trưa ({Constant.START_HOUR + period - 1}-"
     f"{Constant.START_HOUR + period})"
+    if period - 1 == Constant.LUNCH_PERIOD
+    else f"Tiết {period} ({Constant.START_HOUR + period - 1}-"
+         f"{Constant.START_HOUR + period})"
     for period in range(1, Constant.DAY_HOURS + 1)
 ]
 
@@ -33,8 +36,10 @@ best = alg.result
 print(f"\nĐộ phù hợp cuối cùng: {best.fitness:.6f}\n")
 
 crit = best.criteria
-n = len(crit) // 2
-NAMES = ["P - Phòng học trùng lịch", "G - Giảng viên trùng lịch"]
+n = len(crit) // 3
+NAMES = ["P - Phòng học trùng lịch",
+         "G - Giảng viên trùng lịch",
+         "N - Xếp vào khung nghỉ trưa 12-13"]
 print("--- Điểm từng tiêu chí ---")
 for i, nm in enumerate(NAMES):
     fails = [j for j in range(n) if not crit[j * len(NAMES) + i]]
@@ -43,10 +48,12 @@ for i, nm in enumerate(NAMES):
 
 # --- Kiểm tra trùng lịch trực tiếp từ Schedule ---
 room_occ, prof_occ = defaultdict(set), defaultdict(set)
-conf_room = conf_prof = 0
+conf_room = conf_prof = conf_lunch = 0
 
 for cc, idx in best.classes.items():
     res = Reservation.parse(idx)
+    if res.Time <= Constant.LUNCH_PERIOD < res.Time + cc.Duration:
+        conf_lunch += 1
     for j in range(cc.Duration):
         slot = (res.Day, res.Time + j)
         if slot in room_occ[res.Room]:
@@ -59,7 +66,8 @@ for cc, idx in best.classes.items():
 print("\n--- Kiểm tra độc lập ---")
 print(f"  Trùng lịch phòng học     : {conf_room}")
 print(f"  Trùng lịch giảng viên    : {conf_prof}")
-total_bad = conf_room + conf_prof
+print(f"  Xếp vào khung nghỉ trưa  : {conf_lunch}")
+total_bad = conf_room + conf_prof + conf_lunch
 print(f"=> {'THỜI KHÓA BIỂU HOÀN TOÀN HỢP LỆ' if total_bad == 0 else f'CÒN {total_bad} LỖI'}")
 
 # --- In thời khóa biểu ---
@@ -91,11 +99,11 @@ for room_id in range(config.numberOfRooms):
 
 # --- Thống kê ---
 tot = sum(c.Duration for c in config.courseClasses)
-sua_chua = Constant.DAY_HOURS * Constant.DAYS_NUM * config.numberOfRooms
+sua_chua = Constant.TEACHING_HOURS * Constant.DAYS_NUM * config.numberOfRooms
 print("\n" + "=" * 150)
 print("THỐNG KÊ")
 print("=" * 150)
 print(f"  Tổng số giờ học trong tuần : {tot}")
-print(f"  Sức chứa phòng học         : {Constant.DAY_HOURS} tiết x {Constant.DAYS_NUM} ngày"
+print(f"  Sức chứa phòng học         : {Constant.TEACHING_HOURS} tiết x {Constant.DAYS_NUM} ngày"
       f" x {config.numberOfRooms} phòng = {sua_chua} giờ")
 print(f"  Tỉ lệ sử dụng             : {tot / sua_chua * 100:.1f}%")

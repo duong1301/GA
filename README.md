@@ -42,7 +42,7 @@ Việc đầu tiên cần cân nhắc khi làm việc với thuật toán di tru
 
 ## Cách biểu diễn
 
-Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Ta cũng giả thiết rằng lớp học không được bắt đầu trước 7 giờ sáng và phải kết thúc trước hoặc đúng 19 giờ (tổng cộng 12 tiết), và ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày). Giờ bắt đầu và số tiết mỗi ngày được cấu hình trong `model/Constant.py` qua `START_HOUR` và `DAY_HOURS`.
+Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi khung giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Một ngày có 11 khung giờ từ 7 giờ đến 18 giờ, chia làm hai buổi: buổi sáng 5 tiết (7h–12h) và buổi chiều 5 tiết (13h–18h); khung 12h–13h là giờ nghỉ trưa, không được xếp lịch (tổng cộng 10 tiết dạy mỗi ngày). Ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày). Các tham số này được cấu hình trong `model/Constant.py` qua `START_HOUR`, `DAY_HOURS` (11 khung giờ), `LUNCH_PERIOD` (chỉ số khung nghỉ trưa) và `TEACHING_HOURS` (10 tiết dạy).
 
 Kết quả sẽ được hiển thị dưới dạng bảng HTML. Chương trình sẽ mở trình duyệt mặc định để trình bày thời khóa biểu một cách rõ ràng.
 
@@ -50,12 +50,13 @@ Kết quả sẽ được hiển thị dưới dạng bảng HTML. Chương trì
 
 Bây giờ cần gán một giá trị độ thích nghi cho nhiễm sắc thể. Như đã nói ở trên, chỉ có các ràng buộc cứng được dùng để tính độ thích nghi. Cách tính như sau:
 
-- Mỗi lớp học có thể nhận từ 0 đến 2 điểm, ứng với các tiêu chí `P`, `G`.
+- Mỗi lớp học có thể nhận từ 0 đến 3 điểm, ứng với các tiêu chí `P`, `G`, `N`.
 - Nếu lớp học nằm trong phòng còn trống, tăng điểm của lớp đó.
 - Nếu giảng viên không có lớp khác trong thời điểm đó, tăng thêm một điểm cho lớp.
+- Nếu lớp học không rơi vào khung giờ nghỉ trưa 12h–13h, tăng thêm một điểm cho lớp.
 - Nếu một lớp vi phạm quy tắc, điểm của tiêu chí đó là `1 - trọng số phạt` thay vì `1`. Trọng số phạt nằm trong khoảng 0 đến 1; `0` nghĩa là không phạt, `1` nghĩa là mất trọn điểm của tiêu chí.
 
-Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó `điểm_tối_đa = số_lớp_học × 2`. Giá trị độ thích nghi nằm trong khoảng từ 0 đến 1.
+Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó `điểm_tối_đa = số_lớp_học × 3`. Giá trị độ thích nghi nằm trong khoảng từ 0 đến 1.
 
 > **Lưu ý về cơ chế phạt:** Vì các ràng buộc cứng chỉ bị trừ điểm chứ không bị loại bỏ nhiệm vụ, nên luôn tồn tại một lời giải khả thi. Thuật toán tiến dần đưa giá trị độ thích nghi về gần 1, và dừng lại khi đạt ngưỡng (mặc định là 0,999).
 
@@ -65,7 +66,7 @@ Một phép lai ghép kết hợp dữ liệu trong các bản đồ băm (hash 
 
 # Biến dị (Mutation)
 
-Một phép biến dị rất đơn giản. Nó chỉ đơn giản là chọn ngẫu nhiên một lớp học và chuyển nó sang một ô thời gian - không gian khác được chọn ngẫu nhiên. Số lớp học sẽ được chuyển trong một lần thao tác được quy định bởi kích thước biến dị (mutation size) trong các tham số của nhiễm sắc thể.
+Một phép biến dị rất đơn giản. Nó chỉ đơn giản là chọn ngẫu nhiên một lớp học và chuyển nó sang một ô thời gian - không gian khác được chọn ngẫu nhiên. Vị trí mới luôn nằm trong các khung giờ dạy hợp lệ (buổi sáng 7h–12h hoặc buổi chiều 13h–18h), không bao giờ rơi vào khung nghỉ trưa 12h–13h. Số lớp học sẽ được chuyển trong một lần thao tác được quy định bởi kích thước biến dị (mutation size) trong các tham số của nhiễm sắc thể.
 
 # Thuật toán
 
@@ -124,14 +125,15 @@ Tệp `GaSchedule.json` đi kèm chứa: 13 giảng viên, 8 môn học, 2 phòn
 
 ## Trọng số tiêu chí
 
-Hai tiêu chí được lưu trong `model/Criteria.py`. Trọng số là **mức phạt** khi lớp học vi phạm:
+Ba tiêu chí được lưu trong `model/Criteria.py`. Trọng số là **mức phạt** khi lớp học vi phạm:
 
 | Mã | Tiêu chí | Trọng số phạt |
 |---|---|---|
 | `P` | Phòng học không bị trùng lịch | 1.0 |
 | `G` | Giảng viên không bị trùng lịch | 1.0 |
+| `N` | Không xếp lịch vào khung nghỉ trưa 12h–13h | 1.0 |
 
-Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - trọng số`. Vì vậy `P` và `G` là các tiêu chí nghiêm: vi phạm sẽ mất trọn 1 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
+Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - trọng số`. Vì vậy `P`, `G` và `N` là các tiêu chí nghiêm: vi phạm sẽ mất trọn 1 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
 
 # Hiệu năng
 
@@ -209,7 +211,7 @@ html_result = HtmlOutput.getResult(alg.result, history=Tracer.get_history())
 
 Nếu truyền thêm `history=Tracer.get_history()`, tài liệu HTML sẽ có:
 - biểu đồ đường **Fitness qua các thế hệ** thể hiện mức tăng/giảm của fitness qua mọi thế hệ đã chạy, kèm các chỉ số bắt đầu, cao nhất và cuối cùng;
-- các khối **Thời khóa biểu qua các bước** cho phép mở từng bước trung gian để xem lịch tương ứng, kèm badge số lớp đạt từng tiêu chí `P/G`.
+- các khối **Thời khóa biểu qua các bước** cho phép mở từng bước trung gian để xem lịch tương ứng, kèm badge số lớp đạt từng tiêu chí `P/G/N`.
 
 Gọi `Tracer.reset()` trước khi chạy để xóa lịch sử của lần chạy trước. Nếu không truyền `history`, HTML chỉ hiển thị kết quả cuối cùng như trước đây. Mặc định tối đa 60 bước tiêu biểu được vẽ lịch chi tiết; có thể đổi bằng `HtmlOutput.MAX_STEP_PANELS`.
 
@@ -225,12 +227,12 @@ Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaSc
 
 - Phần tiêu đề và thống kê độ phù hợp.
 - **Thông số thuật toán**: khối nằm trên phần chú thích và dữ liệu đầu vào, mở sẵn để chỉnh kích thước quần thể, lai ghép, đột biến, điều kiện dừng và fitness mục tiêu; nút **↻ Chạy lại** nằm ở phần đầu khối.
-- **Chú thích 2 tiêu chí** với ký hiệu `P/G`, được giữ cố định khi cuộn trang.
-- **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 12 hàng tương ứng 12 tiết và 5 cột tương ứng từ thứ hai đến thứ sáu.
-- **Lịch giảng dạy theo giảng viên**: nằm ngay dưới thời khóa biểu cuối cùng; mỗi giảng viên một bảng 12 tiết × 5 ngày, kèm badge số tiết/tuần và số môn trong tuần; mỗi ô ghi môn học cùng tên phòng (nhãn tím). Bấm vào tên giảng viên để thu gọn hoặc mở rộng bảng; nếu vi phạm tiêu chí `G`, ô bị trùng được xếp chồng kèm nhãn `Trùng lịch giảng viên`.
+- **Chú thích 3 tiêu chí** với ký hiệu `P/G/N`, được giữ cố định khi cuộn trang.
+- **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 11 hàng tương ứng 11 khung giờ (10 tiết dạy từ 7h–12h và 13h–18h, xen giữa là hàng nền kẻ chéo "Nghỉ trưa" 12h–13h) và 5 cột tương ứng từ thứ hai đến thứ sáu.
+- **Lịch giảng dạy theo giảng viên**: nằm ngay dưới thời khóa biểu cuối cùng; mỗi giảng viên một bảng 11 khung giờ × 5 ngày (giống bảng phòng, gồm hàng nghỉ trưa), kèm badge số tiết/tuần và số môn trong tuần; mỗi ô ghi môn học cùng tên phòng (nhãn tím). Bấm vào tên giảng viên để thu gọn hoặc mở rộng bảng; nếu vi phạm tiêu chí `G`, ô bị trùng được xếp chồng kèm nhãn `Trùng lịch giảng viên`.
 - **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học và phòng học, kèm số giờ và sức chứa để đối chiếu với kết quả xếp lịch. Bảng giảng viên không hiển thị số lớp học phần mà giảng viên đảm nhận.
 - **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
-- **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/G` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
+- **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/G/N` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
 
 Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần kết quả (thời khóa biểu phòng và lịch giảng dạy của giảng viên). Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
 
@@ -242,6 +244,7 @@ Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đ
 |---|---|
 | `P` | Phòng học không bị trùng lịch |
 | `G` | Giảng viên không bị trùng lịch dạy |
+| `N` | Lớp không bị xếp vào khung nghỉ trưa 12h–13h |
 
 # Theo dõi từng bước khi chạy
 
@@ -269,8 +272,8 @@ Quy mô       : 13 giảng viên · 8 môn học · 2 phòng học · 38 lớp h
 
   THỐNG KÊ
   Tổng số giờ học trong tuần : 80 giờ (38 lớp, trung bình 2.1 giờ/lớp)
-  Sức chứa của hệ thống phòng: 12 tiết/ngày x 5 ngày x 2 phòng = 120 giờ
-  Tỉ lệ sử dụng phòng       : 48.3%
+  Sức chứa của hệ thống phòng: 10 tiết/ngày x 5 ngày x 2 phòng = 100 giờ
+  Tỉ lệ sử dụng phòng       : 80.0%
 ```
 
 Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức chứa phòng trước khi chạy thuật toán.
@@ -278,8 +281,14 @@ Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức c
 **1. Dòng tóm tắt cho mỗi thế hệ**
 
 ```
-THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 100  | Số lần không cải thiện: 6     | Thời gian:   3.73s
-  Tiêu chí đạt (đạt/tổng): P=19/27   G=27/27
+THẾ HỆ 10     │ Độ phù hợp: 0.862963 │ Cá thể: 100  │ Không cải thiện: 6     │ 3.73s
+    ┌────┬────────────────────────────────────┬──────────┬────────┐
+    │ Mã │ Ràng buộc                          │ Đạt/tổng │ Kết quả│
+    ├────┼────────────────────────────────────┼──────────┼────────┤
+    │ P  │ Phòng học không bị trùng           │   38/38  │   ✓    │
+    │ G  │ Giảng viên không trùng lịch        │   36/38  │   ✗    │
+    │ N  │ Không xếp vào khung nghỉ trưa ...  │   38/38  │   ✓    │
+    └────┴────────────────────────────────────┴──────────┴────────┘
 ```
 
 **2. Bảng thời khóa biểu đầy đủ** của cá thể tốt nhất, in lặp lại mỗi 10 thế hệ. Ta có thể quan sát lịch được sắp xếp lại dần như thế nào. Dấu `^` nghĩa là tiết tiếp theo của cùng một lớp đang kéo dài:
@@ -290,17 +299,19 @@ THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 10
   | Tiết              | T2                        | T3                        | ...
   +------------------------------------------------------------------------------------
   | Tiết 2 (8-9)      |                           | Lập trình hướng đối tượng / Trần Thị | ...
-  | Tiết 3 (9-10)     | An toàn thông tin       | ^                         | ...
+  | Tiết 3 (9-10)     | An toàn thông tin        | ^                         | ...
   | Tiết 4 (10-11)    |                           | ^                         | ...
+  | Nghỉ trưa 12-13   |                           |                           | ...
+  | Tiết 7 (13-14)    |                           |                           | ...
   +------------------------------------------------------------------------------------
 ```
 
-**3. Chi tiết từng lớp học** kèm 2 cờ tiêu chí, in mỗi 50 thế hệ. `-` là đạt, `X` là vi phạm:
+**3. Chi tiết từng lớp học** kèm 3 cờ tiêu chí, in mỗi 50 thế hệ. `-` là đạt, `X` là vi phạm:
 
 ```
-  Mã   Môn học                      Giảng viên           Ngày  Tiết        Phòng     P G
-  0    Lập trình hướng đối tượng    Nguyễn Văn An        T6    tiết 8 (3h)   Phòng 102  --
-  4    Lập trình hướng đối tượng    Vũ Anh Đức           T4    tiết 9 (2h)   Phòng 102  -X
+  Mã   Môn học                      Giảng viên           Ngày  Tiết        Phòng     P G N
+  0    Lập trình hướng đối tượng    Nguyễn Văn An        T6    tiết 8 (3h)   Phòng 102  ---
+  4    Lập trình hướng đối tượng    Vũ Anh Đức           T4    tiết 9 (2h)   Phòng 102  -X-
 ```
 
 **4. Lịch giảng dạy theo giảng viên** — in ra một lần, sau khi thuật toán chạy xong

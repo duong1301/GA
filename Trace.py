@@ -132,12 +132,15 @@ def _kv_table(pairs, keyWidth=34):
 class Trace:
     WEEK_DAYS = ("T2", "T3", "T4", "T5", "T6")
     PERIODS = tuple(
-        f"Tiết {period:<2} {Constant.START_HOUR + period - 1}-"
-        f"{Constant.START_HOUR + period}"
+        "Nghỉ trưa    {:<2}-{}".format(
+            Constant.START_HOUR + period - 1, Constant.START_HOUR + period)
+        if period - 1 == Constant.LUNCH_PERIOD
+        else f"Tiết {period:<2} {Constant.START_HOUR + period - 1}-"
+             f"{Constant.START_HOUR + period}"
         for period in range(1, Constant.DAY_HOURS + 1)
     )
-    CRITERIA_NAMES = ("P", "G")
-    CRITERIA_MEAN = ("Phòng", "GV")
+    CRITERIA_NAMES = ("P", "G", "N")
+    CRITERIA_MEAN = ("Phòng", "GV", "Nghỉ trưa")
     _start_time = time.time()
     # Lịch sử từng thế hệ để xuất biểu đồ fitness và thời khóa biểu của các bước ra HTML.
     _history = []
@@ -232,7 +235,7 @@ class Trace:
     def _rooms(configuration):
         t = Table(["Mã", "Tên phòng", "Sức chứa / tuần"],
                   ["r", "l", "r"])
-        capacity = Constant.DAY_HOURS * Constant.DAYS_NUM
+        capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM
         for room in configuration._rooms.values():
             t.add([room.Id, room.Name,
                    "{} giờ".format(capacity)])
@@ -251,7 +254,7 @@ class Trace:
     def _statistics(configuration):
         classes = configuration.courseClasses
         totalHours = sum(cc.Duration for cc in classes)
-        capacity = Constant.DAY_HOURS * Constant.DAYS_NUM * configuration.numberOfRooms
+        capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM * configuration.numberOfRooms
 
         pairs = [
             ("Tổng số giờ học trong tuần",
@@ -259,7 +262,7 @@ class Trace:
              .format(totalHours, len(classes), totalHours / len(classes))),
             ("Sức chứa của hệ thống phòng",
              "{} tiết/ngày × {} ngày × {} phòng = {} giờ"
-             .format(Constant.DAY_HOURS, Constant.DAYS_NUM,
+             .format(Constant.TEACHING_HOURS, Constant.DAYS_NUM,
                      configuration.numberOfRooms, capacity)),
             ("Tỉ lệ sử dụng phòng", "{:.1f} %".format(totalHours / capacity * 100)),
         ]
@@ -301,7 +304,7 @@ class Trace:
 
     @staticmethod
     def generation(generation: int, best, populationSize: int, bestNotEnhance: int = 0):
-        """In một dòng tóm tắt cho thế hệ hiện tại, kèm bảng 4 tiêu chí."""
+        """In một dòng tóm tắt cho thế hệ hiện tại, kèm bảng các tiêu chí."""
         criteria = best.criteria
         step = len(Trace.CRITERIA_NAMES)
         total = len(criteria) // step
@@ -313,7 +316,8 @@ class Trace:
                       bestNotEnhance, Trace.elapsed()))
 
         meanings = ("Phòng học không bị trùng",
-                    "Giảng viên không trùng lịch")
+                    "Giảng viên không trùng lịch",
+                    "Không xếp vào khung nghỉ trưa 12h-13h")
         t = Table(["Mã", "Ràng buộc", "Đạt / tổng", "Kết quả"],
                   ["c", "l", "r", "c"])
         t.indent = "    "
@@ -325,7 +329,7 @@ class Trace:
 
     @staticmethod
     def detail(solution, generation: int):
-        """In chi tiết từng lớp học của cá thể tốt nhất kèm 4 cờ tiêu chí."""
+        """In chi tiết từng lớp học của cá thể tốt nhất kèm cờ từng tiêu chí."""
         configuration = solution.configuration
         codes = Trace.CRITERIA_NAMES
 
