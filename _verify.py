@@ -25,7 +25,7 @@ config = Configuration()
 config.parseFile(str(pathlib.Path().absolute()) + "/GaSchedule.json")
 
 print(f"Số phòng: {config.numberOfRooms} | Số giảng viên: {config.numberOfProfessors} | "
-      f"Số nhóm SV: {config.numberOfStudentGroups} | Số buổi học: {config.numberOfCourseClasses}")
+      f"Số buổi học: {config.numberOfCourseClasses}")
 print("Đang chạy thuật toán GA ...\n")
 alg = GeneticAlgorithm(config)
 alg.run()
@@ -33,23 +33,20 @@ best = alg.result
 print(f"\nĐộ phù hợp cuối cùng: {best.fitness:.6f}\n")
 
 crit = best.criteria
-n = len(crit) // 4
-NAMES = ["P - Phòng học trùng lịch", "C - Đủ số chỗ ngồi",
-         "G - Giảng viên trùng lịch", "S - Nhóm SV trùng lịch"]
+n = len(crit) // 2
+NAMES = ["P - Phòng học trùng lịch", "G - Giảng viên trùng lịch"]
 print("--- Điểm từng tiêu chí ---")
 for i, nm in enumerate(NAMES):
-    fails = [j for j in range(n) if not crit[j * 4 + i]]
-    print(f"  {nm:<24}: {'OK' if not fails else f'{len(fails)}/{n} VI PHAM'}")
+    fails = [j for j in range(n) if not crit[j * len(NAMES) + i]]
+    print(f"  {nm:<28}: {'OK' if not fails else f'{len(fails)}/{n} VI PHAM'}")
+
 
 # --- Kiểm tra trùng lịch trực tiếp từ Schedule ---
-room_occ, prof_occ, grp_occ = defaultdict(set), defaultdict(set), defaultdict(set)
-conf_room = conf_prof = conf_grp = seat_bad = 0
+room_occ, prof_occ = defaultdict(set), defaultdict(set)
+conf_room = conf_prof = 0
 
 for cc, idx in best.classes.items():
     res = Reservation.parse(idx)
-    room = config.getRoomById(res.Room)
-    if room.NumberOfSeats < cc.NumberOfSeats:
-        seat_bad += 1
     for j in range(cc.Duration):
         slot = (res.Day, res.Time + j)
         if slot in room_occ[res.Room]:
@@ -58,30 +55,24 @@ for cc, idx in best.classes.items():
         if slot in prof_occ[cc.Professor.Id]:
             conf_prof += 1
         prof_occ[cc.Professor.Id].add(slot)
-        for g in cc.Groups:
-            if slot in grp_occ[g.Id]:
-                conf_grp += 1
-            grp_occ[g.Id].add(slot)
 
 print("\n--- Kiểm tra độc lập ---")
 print(f"  Trùng lịch phòng học     : {conf_room}")
 print(f"  Trùng lịch giảng viên    : {conf_prof}")
-print(f"  Trùng lịch nhóm sinh viên: {conf_grp}")
-print(f"  Phòng không đủ chỗ ngồi : {seat_bad}")
-total_bad = conf_room + conf_prof + conf_grp + seat_bad
-print(f"\n=> {'THỜI KHÓA BIỂU HOÀN TOÀN HỢP LỆ' if total_bad == 0 else f'CÒN {total_bad} LỖI'}")
+total_bad = conf_room + conf_prof
+print(f"=> {'THỜI KHÓA BIỂU HOÀN TOÀN HỢP LỆ' if total_bad == 0 else f'CÒN {total_bad} LỖI'}")
 
 # --- In thời khóa biểu ---
 grid = defaultdict(dict)
 for cc, idx in best.classes.items():
     res = Reservation.parse(idx)
-    label = f"{cc.Course.Name} / {cc.Professor.Name} / {'+'.join(g.Name for g in cc.Groups)}"
+    label = f"{cc.Course.Name} / {cc.Professor.Name}"
     grid[res.Room][(res.Day, res.Time)] = (cc.Duration, label)
 
 for room_id in range(config.numberOfRooms):
     room = config.getRoomById(room_id)
     print("\n" + "=" * 150)
-    print(f"PHÒNG {room.Name}   Số chỗ: {room.NumberOfSeats}")
+    print(f"PHÒNG {room.Name}")
     print("=" * 150)
     print(f"{'Tiết':<20}" + "".join(f"| {d:<26}" for d in DAYS))
     print("-" * 150)

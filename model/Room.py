@@ -4,14 +4,12 @@ class Room:
     _next_room_id = 0
 
     # Khởi tạo dữ liệu phòng học và gán ID cho phòng
-    def __init__(self, name, number_of_seats):
+    def __init__(self, name):
         # Trả về ID của phòng - được gán tự động
         self.Id = Room._next_room_id
         Room._next_room_id += 1
         # Trả về tên phòng
         self.Name = name
-        # Trả về số chỗ ngồi trong phòng
-        self.NumberOfSeats = number_of_seats
 
     def __hash__(self):
         return hash(self.Id)

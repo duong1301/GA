@@ -16,27 +16,20 @@ class HtmlOutput:
     COLOR2 = "#b91c1c"
     # Số bước tối đa hiển thị thời khóa biểu chi tiết trong file HTML.
     MAX_STEP_PANELS = 60
-    # Ký hiệu viết tắt của 4 tiêu chí kiểm tra ràng buộc:
-    #   P = Phòng học   C = Chỗ ngồi
-    #   G = Giảng viên  S = Sinh viên
-    CRITERIAS = ('P', 'C', 'G', 'S')
+    # Ký hiệu viết tắt của 2 tiêu chí kiểm tra ràng buộc:
+    #   P = Phòng học   G = Giảng viên
+    CRITERIAS = ('P', 'G')
     CRITERIA_LABELS = (
         "Phòng không trùng lịch",
-        "Đủ số chỗ ngồi",
         "Giảng viên không trùng lịch",
-        "Nhóm sinh viên không trùng lịch",
     )
     OK_DESCR = (
         "Phòng học không bị trùng lịch",
-        "Phòng học có đủ chỗ ngồi",
         "Giảng viên không bị trùng lịch dạy",
-        "Nhóm sinh viên không bị trùng lịch học",
     )
     FAIL_DESCR = (
         "Phòng học bị trùng lịch",
-        "Phòng học không đủ chỗ ngồi",
         "Giảng viên bị trùng lịch dạy",
-        "Nhóm sinh viên bị trùng lịch học",
     )
     PERIODS = ("",) + tuple(
         f"Tiết {period}" for period in range(1, Constant.DAY_HOURS + 1)
@@ -71,7 +64,7 @@ class HtmlOutput:
 
         * { box-sizing: border-box; }
 
-        html { -webkit-text-size-adjust: 100%; }
+        html { -webkit-text-size-adjust: 100%; font-size: 22.4px; }
 
         body {
             margin: 0;
@@ -82,7 +75,7 @@ class HtmlOutput:
                 radial-gradient(900px 500px at 100% 0%, #ede9fe 0%, rgba(237, 233, 254, 0) 55%),
                 var(--bg);
             font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-            font-size: 15px;
+            font-size: 21px;
             line-height: 1.55;
         }
 
@@ -560,12 +553,6 @@ class HtmlOutput:
             font-size: .67rem;
             font-weight: 600;
             line-height: 1.5;
-        }
-
-        .tag-group {
-            color: #1e40af;
-            background: #eff6ff;
-            border: 1px solid #dbeafe;
         }
 
         .tag-duration {
@@ -1091,7 +1078,7 @@ class HtmlOutput:
 
         .chart-axis-label {
             fill: #64748b;
-            font-size: 12px;
+            font-size: 16.8px;
             font-variant-numeric: tabular-nums;
         }
 
@@ -1400,7 +1387,7 @@ class HtmlOutput:
         @media print {
             body {
                 background: #fff;
-                font-size: 11px;
+                font-size: 15.4px;
             }
 
             .page {
@@ -1570,7 +1557,7 @@ class HtmlOutput:
 
     @staticmethod
     def getCriteriaBadges(criterias, ci):
-        """Tạo 4 huy hiệu tiêu chí P/C/G/S cho một lớp học."""
+        """Tạo 2 huy hiệu tiêu chí P/G cho một lớp học."""
         sb = ['<div class="crits">']
         for i, letter in enumerate(HtmlOutput.CRITERIAS):
             passed = bool(criterias[ci + i])
@@ -1590,21 +1577,15 @@ class HtmlOutput:
 
     @staticmethod
     def getCourseClass(cc, criterias, ci):
-        """Tạo nội dung HTML cho một ô lịch (môn học, giảng viên, nhóm, tiêu chí)."""
+        """Tạo nội dung HTML cho một ô lịch (môn học, giảng viên, tiêu chí)."""
         sb = [
             '<div class="course">', html.escape(cc.Course.Name), '</div>',
             '<div class="prof">', html.escape(cc.Professor.Name), '</div>',
         ]
 
-        groups = sorted((g.Name for g in cc.Groups), key=str.casefold)
-        if groups or cc.Duration > 1:
+        if cc.Duration > 1:
             sb.append('<div class="tags">')
-            for group_name in groups:
-                sb.append('<span class="tag tag-group">')
-                sb.append(html.escape(group_name))
-                sb.append('</span>')
-            if cc.Duration > 1:
-                sb.append(f'<span class="tag tag-duration">{cc.Duration} tiết</span>')
+            sb.append(f'<span class="tag tag-duration">{cc.Duration} tiết</span>')
             sb.append('</div>')
 
         sb.append(HtmlOutput.getCriteriaBadges(criterias, ci))
@@ -1752,9 +1733,6 @@ class HtmlOutput:
             '<div class="room-title">'
             '<span class="room-kicker">Phòng học</span>'
             f'<h2>{html.escape(room.Name)}</h2>'
-            '</div>'
-            '<div class="room-badges">'
-            f'<span class="badge">{room.NumberOfSeats} chỗ ngồi</span>'
             '</div>'
             '</div>'
             '<p class="scroll-hint">Vuốt ngang để xem đủ các ngày '
@@ -2109,7 +2087,7 @@ class HtmlOutput:
                 f'<span class="step-meter" aria-hidden="true">'
                 f'<span style="width:{percent:.1f}%"></span></span>'
                 '<span class="step-counts" aria-label="Số lớp đạt các tiêu chí '
-                f'P, C, G, S">{counts_html}</span>'
+                f'P, G">{counts_html}</span>'
                 f'<span class="step-score">{percent:.1f}%</span>'
                 '</summary>'
                 '<div class="step-body">'
@@ -2189,7 +2167,7 @@ class HtmlOutput:
 
     @staticmethod
     def getInputSection(solution):
-        """Hiển thị danh sách giảng viên, môn học, phòng học và nhóm sinh viên."""
+        """Hiển thị danh sách giảng viên, môn học và phòng học."""
         configuration = solution.configuration
         classes = list(configuration.courseClasses)
 
@@ -2203,7 +2181,6 @@ class HtmlOutput:
             professor_rows.append([
                 professor.Id,
                 professor.Name,
-                len(professor.CourseClasses),
                 ", ".join(courses) if courses else "—",
             ])
 
@@ -2221,20 +2198,8 @@ class HtmlOutput:
         capacity = Constant.DAY_HOURS * Constant.DAYS_NUM
         rooms = sorted(configuration._rooms.values(), key=lambda item: item.Id)
         room_rows = [
-            [room.Id, room.Name, room.NumberOfSeats, f"{capacity} giờ"]
+            [room.Id, room.Name, f"{capacity} giờ"]
             for room in rooms
-        ]
-
-        groups = sorted(configuration._studentGroups.values(), key=lambda item: item.Id)
-        group_rows = [
-            [
-                group.Id,
-                group.Name,
-                group.NumberOfStudents,
-                len(group.CourseClasses),
-                sum(cc.Duration for cc in group.CourseClasses),
-            ]
-            for group in groups
         ]
 
         cards = [
@@ -2242,9 +2207,9 @@ class HtmlOutput:
                 "Giảng viên",
                 len(professor_rows),
                 HtmlOutput.getInputTable(
-                    ["Mã", "Họ tên", "Số lớp", "Môn học phụ trách"],
+                    ["Mã", "Họ tên", "Môn học phụ trách"],
                     professor_rows,
-                    ["r", "l", "r", "l"],
+                    ["r", "l", "l"],
                 ),
             ),
             HtmlOutput.getInputCard(
@@ -2260,25 +2225,16 @@ class HtmlOutput:
                 "Phòng học",
                 len(room_rows),
                 HtmlOutput.getInputTable(
-                    ["Mã", "Phòng học", "Số chỗ", "Sức chứa/tuần"],
+                    ["Mã", "Phòng học", "Sức chứa/tuần"],
                     room_rows,
-                    ["r", "l", "r", "r"],
-                ),
-            ),
-            HtmlOutput.getInputCard(
-                "Nhóm sinh viên",
-                len(group_rows),
-                HtmlOutput.getInputTable(
-                    ["Mã", "Nhóm sinh viên", "Số SV", "Số lớp", "Tổng giờ"],
-                    group_rows,
-                    ["r", "l", "r", "r", "r"],
+                    ["r", "l", "r"],
                 ),
             ),
         ]
 
         summary_counts = (
             f"{len(professor_rows)} giảng viên · {len(course_rows)} môn học · "
-            f"{len(room_rows)} phòng · {len(group_rows)} nhóm"
+            f"{len(room_rows)} phòng"
         )
 
         return (
@@ -2390,7 +2346,6 @@ class HtmlOutput:
             (len(solution.classes), "lớp học"),
             (configuration.numberOfRooms, "phòng"),
             (configuration.numberOfProfessors, "giảng viên"),
-            (configuration.numberOfStudentGroups, "nhóm sinh viên"),
             (total_hours, "tiết học"),
         )
         stats_html = "".join(

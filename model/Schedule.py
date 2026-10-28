@@ -201,14 +201,13 @@ class Schedule:
         daySize = DAY_HOURS * numberOfRooms
 
         ci = 0
-        getRoomById = configuration.getRoomById
 
         # kiểm tra các tiêu chí và tính điểm cho từng lớp học phần trong thời khóa biểu
         for cc, reservation_index in items:
             reservation = Reservation.parse(reservation_index)
 
             # toạ độ của ô thời gian - không gian
-            day, time, room = reservation.Day, reservation.Time, reservation.Room
+            day, time = reservation.Day, reservation.Time
 
             dur = cc.Duration
 
@@ -217,19 +216,12 @@ class Schedule:
             # có bị trùng phòng không
             criteria[ci + 0] = not ro
 
-            r = getRoomById(room)
-            # phòng hiện tại có đủ chỗ ngồi không
-            criteria[ci + 1] = Criteria.isSeatEnough(r, cc)
-
-            # kiểm tra sự trùng lặp giữa các lớp học phần về giảng viên và nhóm sinh viên
+            # kiểm tra sự trùng lặp giữa các lớp học phần về giảng viên
             timeId = day * daySize + time
-            po, go = Criteria.isOverlappedProfStudentGrp(slots, cc, numberOfRooms, timeId)
+            po = Criteria.isOverlappedProf(slots, cc, numberOfRooms, timeId)
 
             # các giảng viên không có lớp học phần nào trùng lịch?
-            criteria[ci + 2] = not po
-
-            # các nhóm sinh viên không có lớp học phần nào trùng lịch?
-            criteria[ci + 3] = not go
+            criteria[ci + 1] = not po
 
             for i in range(len(Criteria.weights)):
                 if criteria[ci + i]:
@@ -239,6 +231,28 @@ class Schedule:
                     score += 1 - Criteria.weights[i]
 
             ci += len(Criteria.weights)
+
+        # ==================== RÀNG BUỘC MỀM (SOFT CONSTRAINTS) ====================
+        # Các ràng buộc mềm không bắt buộc phải đạt (ví dụ: giảng viên dạy
+        # quá nhiều tiết trong ngày).
+        # Mỗi vi phạm sẽ trừ đi một phần nhỏ điểm số (Criteria.softPenalty).
+
+        # tổng số tiết học của giảng viên theo từng ngày
+        hoursPerProfDay = {}
+
+        for cc, reservation_index in items:
+            reservation = Reservation.parse(reservation_index)
+            day = reservation.Day
+
+            profId = cc.Professor.Id
+            hoursPerProfDay[(profId, day)] = hoursPerProfDay.get((profId, day), 0) + cc.Duration
+
+        softPenalty = 0.0
+        for (profId, day), hours in hoursPerProfDay.items():
+            if Criteria.isProfessorDailyOverloaded(hoursPerProfDay, profId, day):
+                softPenalty += Criteria.softPenalty
+
+        score -= softPenalty
 
         # tính giá trị độ phù hợp dựa trên điểm số
         self._fitness = score / len(criteria)

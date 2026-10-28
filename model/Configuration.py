@@ -1,7 +1,6 @@
 import json
 
 from .Professor import Professor
-from .StudentsGroup import StudentsGroup
 from .Course import Course
 from .Room import Room
 from .CourseClass import CourseClass
@@ -16,8 +15,6 @@ class Configuration:
         self._isEmpty = True
         # các giảng viên đã phân tích
         self._professors = {}
-        # các nhóm sinh viên đã phân tích
-        self._studentGroups = {}
         # các môn học đã phân tích
         self._courses = {}
         # các phòng học đã phân tích
@@ -36,18 +33,6 @@ class Configuration:
     # Trả về số giảng viên đã phân tích
     def numberOfProfessors(self) -> int:
         return len(self._professors)
-
-    # Trả về nhóm sinh viên có ID được chỉ định
-    # Nếu không có nhóm sinh viên nào với ID đó thì hàm trả về NULL
-    def getStudentsGroupById(self, id) -> StudentsGroup:
-        if id in self._studentGroups:
-            return self._studentGroups[id]
-        return None
-
-    @property
-    # Trả về số nhóm sinh viên đã phân tích
-    def numberOfStudentGroups(self) -> int:
-        return len(self._studentGroups)
 
     # Trả về môn học có ID được chỉ định
     # Nếu không có môn học nào với ID đó thì hàm trả về NULL
@@ -88,7 +73,7 @@ class Configuration:
         return self._isEmpty
 
     # Đọc dữ liệu giảng viên từ tệp cấu hình, tạo đối tượng và trả về
-    # Trả về NULL nếu hàm không thể phân tích được dữ liệu cấu hình
+    # Trả về NULL nếu hàm không thể phân tích được dữ liệu cấu config
     @staticmethod
     def __parseProfessor(dictConfig):
         id = 0
@@ -104,27 +89,7 @@ class Configuration:
             return None
         return Professor(id, name)
 
-    # Đọc dữ liệu StudentsGroup từ tệp cấu hình, tạo đối tượng và trả về
-    # Trả về None nếu hàm không thể phân tích được dữ liệu cấu hình
-    @staticmethod
-    def __parseStudentsGroup(dictConfig):
-        id = 0
-        name = ''
-        size = 0
-
-        for key in dictConfig:
-            if key == 'id':
-                id = dictConfig[key]
-            elif key == 'name':
-                name = dictConfig[key]
-            elif key == 'size':
-                size = dictConfig[key]
-
-        if id == 0:
-            return None
-        return StudentsGroup(id, name, size)
-
-    # Đọc dữ liệu môn học từ tệp cấu hình, tạo đối tượng và trả về
+    # Đọc dữ liệu môn học từ tệp cấu hình, tạo đối tượng và trả về con trỏ
     # Trả về None nếu hàm không thể phân tích được dữ liệu dictConfig
     @staticmethod
     def __parseCourse(dictConfig):
@@ -141,30 +106,26 @@ class Configuration:
             return None
         return Course(id, name)
 
-    # Đọc dữ liệu phòng học từ tệp cấu hình, tạo đối tượng và trả về
-    # Trả về None nếu hàm không thể phân tích được dữ liệu cấu hình
+    # Đọc dữ liệu phòng học từ tệp cấu config, tạo đối tượng và trả về con trỏ
+    # Trả về None nếu hàm không thể phân tích được dữ liệu cấu config
     @staticmethod
     def __parseRoom(dictConfig):
         name = ''
-        size = 0
 
         for key in dictConfig:
             if key == 'name':
                 name = dictConfig[key]
-            elif key == 'size':
-                size = dictConfig[key]
 
-        if size == 0 or name == '':
+        if name == '':
             return None
-        return Room(name, size)
+        return Room(name)
 
     # Đọc dữ liệu lớp học phần từ tệp cấu hình, tạo đối tượng và trả về con trỏ
-    # Trả về None nếu hàm không thể phân tích được dữ liệu cấu hình
+    # Trả về None nếu hàm không thể phân tích được dữ liệu cấu config
     def __parseCourseClass(self, dictConfig):
         pid = 0
         cid = 0
         dur = 1
-        group_list = []
 
         for key in dictConfig:
             if key == 'professor':
@@ -173,17 +134,6 @@ class Configuration:
                 cid = dictConfig[key]
             elif key == 'duration':
                 dur = dictConfig[key]
-            elif key == 'group' or key == 'groups':
-                groups = dictConfig[key]
-                if isinstance(groups, list):
-                    for grp in groups:
-                        g = self.getStudentsGroupById(grp)
-                        if g:
-                            group_list.append(g)
-                else:
-                    g = self.getStudentsGroupById(groups)
-                    if g:
-                        group_list.append(g)
 
         # lấy giảng viên giảng lớp học phần và môn học mà lớp học phần này thuộc về
         p = self.getProfessorById(pid)
@@ -194,13 +144,12 @@ class Configuration:
             return None
 
         # tạo đối tượng và trả về
-        return CourseClass(p, c, dur, group_list)
+        return CourseClass(p, c, dur)
 
     # phân tích tệp và lưu các đối tượng đã phân tích
     def parseFile(self, fileName):
         # xoá các đối tượng đã phân tích trước đó
         self._professors = {}
-        self._studentGroups = {}
         self._courses = {}
         self._rooms = {}
         self._courseClasses = []
@@ -223,9 +172,6 @@ class Configuration:
                 elif key == 'room':
                     room = self.__parseRoom(dictConfig[key])
                     self._rooms[room.Id] = room
-                elif key == 'group':
-                    group = self.__parseStudentsGroup(dictConfig[key])
-                    self._studentGroups[group.Id] = group
                 elif key == 'class':
                     courseClass = self.__parseCourseClass(dictConfig[key])
                     self._courseClasses.append(courseClass)

@@ -136,8 +136,8 @@ class Trace:
         f"{Constant.START_HOUR + period}"
         for period in range(1, Constant.DAY_HOURS + 1)
     )
-    CRITERIA_NAMES = ("P", "C", "G", "S")
-    CRITERIA_MEAN = ("Phòng", "Chỗ", "GV", "SV")
+    CRITERIA_NAMES = ("P", "G")
+    CRITERIA_MEAN = ("Phòng", "GV")
     _start_time = time.time()
     # Lịch sử từng thế hệ để xuất biểu đồ fitness và thời khóa biểu của các bước ra HTML.
     _history = []
@@ -196,28 +196,26 @@ class Trace:
         if fileName:
             print("  Tệp cấu hình : {}".format(fileName))
         print("  Quy mô       : {} giảng viên · {} môn học · {} phòng học · "
-              "{} nhóm sinh viên · {} lớp học"
+              "{} lớp học"
               .format(configuration.numberOfProfessors, configuration.numberOfCourses,
-                      configuration.numberOfRooms, configuration.numberOfStudentGroups,
+                      configuration.numberOfRooms,
                       configuration.numberOfCourseClasses))
         print()
 
         Trace._professors(configuration)
         Trace._courses(configuration)
         Trace._rooms(configuration)
-        Trace._groups(configuration)
         Trace._classes(configuration)
         Trace._statistics(configuration)
         print()
 
     @staticmethod
     def _professors(configuration):
-        t = Table(["Mã", "Họ tên giảng viên", "Số lớp", "Môn học phụ trách"],
-                  ["r", "l", "r", "l"])
+        t = Table(["Mã", "Họ tên giảng viên", "Môn học phụ trách"],
+                  ["r", "l", "l"])
         for prof in configuration._professors.values():
             courses = sorted({cc.Course.Name for cc in prof.CourseClasses})
-            t.add([prof.Id, prof.Name, len(prof.CourseClasses),
-                   ", ".join(courses) if courses else "(chưa có lớp)"])
+            t.add([prof.Id, prof.Name, ", ".join(courses) if courses else "(chưa có lớp)"])
         t.show("GIẢNG VIÊN")
 
     @staticmethod
@@ -232,34 +230,21 @@ class Trace:
 
     @staticmethod
     def _rooms(configuration):
-        t = Table(["Mã", "Tên phòng", "Số chỗ", "Sức chứa / tuần"],
-                  ["r", "l", "r", "r"])
+        t = Table(["Mã", "Tên phòng", "Sức chứa / tuần"],
+                  ["r", "l", "r"])
         capacity = Constant.DAY_HOURS * Constant.DAYS_NUM
         for room in configuration._rooms.values():
-            t.add([room.Id, room.Name, room.NumberOfSeats,
+            t.add([room.Id, room.Name,
                    "{} giờ".format(capacity)])
         t.show("PHÒNG HỌC")
 
     @staticmethod
-    def _groups(configuration):
-        t = Table(["Mã", "Tên nhóm", "Số SV", "Số lớp", "Tổng giờ phải học"],
-                  ["r", "l", "r", "r", "r"])
-        for group in configuration._studentGroups.values():
-            t.add([group.Id, group.Name, group.NumberOfStudents,
-                   len(group.CourseClasses),
-                   sum(cc.Duration for cc in group.CourseClasses)])
-        t.show("NHÓM SINH VIÊN")
-
-    @staticmethod
     def _classes(configuration):
-        t = Table(["Mã", "Môn học", "Giảng viên", "Nhóm sinh viên",
-                   "Thời lượng", "Số chỗ cần"],
-                  ["r", "l", "l", "l", "c", "r"])
+        t = Table(["Mã", "Môn học", "Giảng viên", "Thời lượng"],
+                  ["r", "l", "l", "c"])
         for index, cc in enumerate(configuration.courseClasses):
             t.add([index, cc.Course.Name, cc.Professor.Name,
-                   "+".join(g.Name for g in cc.Groups),
-                   "{} tiết".format(cc.Duration),
-                   "{} chỗ".format(cc.NumberOfSeats)])
+                   "{} tiết".format(cc.Duration)])
         t.show("LỚP HỌC")
 
     @staticmethod
@@ -267,9 +252,6 @@ class Trace:
         classes = configuration.courseClasses
         totalHours = sum(cc.Duration for cc in classes)
         capacity = Constant.DAY_HOURS * Constant.DAYS_NUM * configuration.numberOfRooms
-        totalStudents = sum(g.NumberOfStudents for g in configuration._studentGroups.values())
-        maxSeats = max((cc.NumberOfSeats for cc in classes), default=0)
-        maxRoom = max((r.NumberOfSeats for r in configuration._rooms.values()), default=0)
 
         pairs = [
             ("Tổng số giờ học trong tuần",
@@ -280,14 +262,7 @@ class Trace:
              .format(Constant.DAY_HOURS, Constant.DAYS_NUM,
                      configuration.numberOfRooms, capacity)),
             ("Tỉ lệ sử dụng phòng", "{:.1f} %".format(totalHours / capacity * 100)),
-            ("Lớn nhất trong 1 lớp",
-             "{} chỗ  |  Phòng lớn nhất: {} chỗ  ->  {}"
-             .format(maxSeats, maxRoom,
-                     "đủ" if maxSeats <= maxRoom else "THIẾU CHỖ")),
         ]
-        pairs.append(("Tổng số sinh viên",
-                      "{} người / {} nhóm".format(totalStudents,
-                                                 configuration.numberOfStudentGroups)))
 
         t = Table(["Chỉ số", "Giá trị"], ["l", "l"], maxWidth=64)
         t.indent = "  "
@@ -337,8 +312,8 @@ class Trace:
               .format(generation, best.fitness, populationSize,
                       bestNotEnhance, Trace.elapsed()))
 
-        meanings = ("Phòng học không bị trùng", "Phòng có đủ chỗ ngồi",
-                    "Giảng viên không trùng lịch", "Nhóm SV không trùng lịch")
+        meanings = ("Phòng học không bị trùng",
+                    "Giảng viên không trùng lịch")
         t = Table(["Mã", "Ràng buộc", "Đạt / tổng", "Kết quả"],
                   ["c", "l", "r", "c"])
         t.indent = "    "
@@ -354,9 +329,9 @@ class Trace:
         configuration = solution.configuration
         codes = Trace.CRITERIA_NAMES
 
-        t = Table(["Mã", "Môn học", "Giảng viên", "Nhóm SV", "Ngày",
+        t = Table(["Mã", "Môn học", "Giảng viên", "Ngày",
                    "Tiết", "Phòng"] + list(codes),
-                  ["r", "l", "l", "l", "c", "c", "l"] + ["c"] * len(codes),
+                  ["r", "l", "l", "c", "c", "l"] + ["c"] * len(codes),
                   maxWidth=22)
 
         criteria = solution.criteria
@@ -364,7 +339,6 @@ class Trace:
             res = Reservation.parse(reservation_index)
             room = configuration.getRoomById(res.Room)
             row = [index, cc.Course.Name, cc.Professor.Name,
-                   "+".join(g.Name for g in cc.Groups),
                    Trace.WEEK_DAYS[res.Day],
                    "{} ({}h)".format(res.Time + 1, cc.Duration),
                    room.Name if room else res.Room]
@@ -419,6 +393,5 @@ class Trace:
             t = Table(headers, ["l"] * len(headers), maxWidth=cellWidth)
             for row in rows:
                 t.add(row)
-            t.show("PHÒNG {}   ·   {} chỗ"
-                   .format(room.Name, room.NumberOfSeats))
+            t.show("PHÒNG {}".format(room.Name))
             print()

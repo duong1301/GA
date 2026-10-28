@@ -127,297 +127,278 @@
 	},
 	{
 		"room": {
-			"name": "Phòng 201",
-			"size": 24
+			"name": "Phòng 201"
 		}
 	},
 	{
 		"room": {
-			"name": "Phòng 102",
-			"size": 60
-		}
-	},
-	{
-		"group": {
-			"id": 1,
-			"name": "Nhóm 1",
-			"size": 19
-		}
-	},
-	{
-		"group": {
-			"id": 2,
-			"name": "Nhóm 2",
-			"size": 19
-		}
-	},
-	{
-		"group": {
-			"id": 3,
-			"name": "Nhóm 3",
-			"size": 19
-		}
-	},
-	{
-		"group": {
-			"id": 4,
-			"name": "Nhóm 4",
-			"size": 19
+			"name": "Phòng 102"
 		}
 	},
 	{
 		"class": {
 			"professor": 1,
 			"course": 1,
-			"duration": 2,
-			"groups": [
-				1,
-				2
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 1,
 			"course": 1,
-			"duration": 2,
-			"groups": [
-				3,
-				4
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 9,
 			"course": 1,
-			"duration": 3,
-			"group": 1
+			"duration": 3
 		}
 	},
 	{
 		"class": {
 			"professor": 9,
 			"course": 1,
-			"duration": 3,
-			"group": 2
+			"duration": 3
 		}
 	},
 	{
 		"class": {
 			"professor": 9,
 			"course": 1,
-			"duration": 3,
-			"group": 3
+			"duration": 3
 		}
 	},
 	{
 		"class": {
 			"professor": 9,
 			"course": 1,
-			"duration": 3,
-			"group": 4
+			"duration": 3
 		}
 	},
 	{
 		"class": {
 			"professor": 2,
 			"course": 2,
-			"duration": 2,
-			"group": [
-				3,
-				4
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 2,
 			"course": 2,
-			"duration": 2,
-			"group": [
-				1,
-				2
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 3,
 			"course": 2,
-			"duration": 2,
-			"group": 1
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 3,
 			"course": 2,
-			"duration": 2,
-			"group": 2
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 3,
 			"course": 2,
-			"duration": 2,
-			"group": 3
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 3,
 			"course": 2,
-			"duration": 2,
-			"group": 4
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 4,
 			"course": 4,
-			"duration": 2,
-			"group": [
-				3,
-				4
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 4,
 			"course": 4,
-			"duration": 2,
-			"group": [
-				3,
-				4
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 4,
 			"course": 4,
-			"duration": 2,
-			"group": [
-				1,
-				2
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 4,
 			"course": 4,
-			"duration": 2,
-			"group": [
-				1,
-				2
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 5,
 			"course": 6,
-			"duration": 2,
-			"group": [
-				1,
-				2,
-				3
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 5,
 			"course": 6,
-			"duration": 2,
-			"group": [
-				1,
-				2,
-				3
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 7,
 			"course": 5,
-			"duration": 2,
-			"group": [
-				1,
-				2,
-				3
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 7,
 			"course": 5,
-			"duration": 2,
-			"group": [
-				1,
-				2
-			]
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 10,
 			"course": 5,
-			"duration": 2,
-			"group": 3
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 8,
 			"course": 3,
-			"duration": 2,
-			"group": 2
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 8,
 			"course": 3,
-			"duration": 2,
-			"group": 3
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 12,
 			"course": 3,
-			"duration": 2,
-			"group": 1
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 12,
 			"course": 3,
-			"duration": 2,
-			"group": 4
-		}
-	},
-	{
-		"class": {
-			"professor": 11,
-			"course": 7,
-			"duration": 2,
-			"group": 4
+			"duration": 2
 		}
 	},
 	{
 		"class": {
 			"professor": 13,
 			"course": 8,
-			"duration": 2,
-			"group": 4
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 5,
+			"course": 4,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 7,
+			"course": 8,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 11,
+			"course": 6,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 12,
+			"course": 7,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 5,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 8,
+			"course": 6,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 10,
+			"course": 3,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 7,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 6,
+			"course": 8,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 3,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 9,
+			"course": 2,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 13,
+			"course": 4,
+			"duration": 2
 		}
 	}
 ]

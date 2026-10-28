@@ -8,19 +8,18 @@ Lập thời khóa biểu là một bài toán NP-khó. Bài toán này có th�
 
 # Bối cảnh
 
-Khi lập thời khóa biểu, bạn phải tính đến nhiều yêu cầu: số lượng giảng viên, sinh viên, lớp học và phòng học, sức chứa phòng, cùng nhiều yếu tố khác. Các yêu cầu này có thể được chia thành vài nhóm theo mức độ quan trọng.
+Khi lập thời khóa biểu, bạn phải tính đến nhiều yêu cầu: số lượng giảng viên, lớp học và phòng học, cùng nhiều yếu tố khác. Các yêu cầu này có thể được chia thành vài nhóm theo mức độ quan trọng.
 
 **Ràng buộc cứng** (vi phạm một ràng buộc thì lịch không khả thi):
 
 1. Một lớp học chỉ có thể được xếp vào phòng học còn trống.
-2. Không giảng viên hoặc nhóm sinh viên nào được có hai lớp học cùng lúc.
-3. Phòng học phải đủ chỗ để chứa toàn bộ sinh viên.
+2. Không giảng viên nào được có hai lớp học cùng lúc.
 
 **Ràng buộc mềm** (có thể bị vi phạm mà lịch vẫn khả thi):
 
 1. Thời gian giảng viên muốn dạy.
 2. Phòng học giảng viên muốn dùng.
-3. Mức độ phân bố (theo thời gian hoặc không gian) của các lớp học dành cho nhóm sinh viên hoặc giảng viên.
+3. Mức độ phân bố (theo thời gian hoặc không gian) của các lớp học dành cho giảng viên.
 
 Rõ ràng, ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình huống cụ thể. Trong ví dụ này, chỉ các ràng buộc cứng được cài đặt. Hãy bắt đầu bằng việc giải thích các đối tượng tạo nên một thời khóa biểu.
 
@@ -29,17 +28,14 @@ Rõ ràng, ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình h
 **Giảng viên (`Professor`)**
 Lớp `Professor` có mã và tên của giảng viên. Nó cũng chứa danh sách các lớp mà giảng viên đó phụ trách dạy.
 
-**Nhóm sinh viên (`StudentsGroup`)**
-Lớp `StudentsGroup` có mã và tên của nhóm sinh viên, cùng với số lượng sinh viên (quy mô nhóm). Nó cũng chứa danh sách các lớp mà nhóm đó tham dự.
-
 **Phòng học (`Room`)**
-Lớp `Room` có mã và tên của phòng học, cùng với số chỗ ngồi. Mã định danh được sinh ra tự động bên trong.
+Lớp `Room` có mã và tên của phòng học. Mã định danh được sinh ra tự động bên trong.
 
 **Môn học (`Course`)**
 Lớp `Course` có mã và tên của môn học.
 
 **Lớp học (`CourseClass`)**
-Đối tượng `CourseClass` giữ tham chiếu tới môn học mà lớp thuộc về, tham chiếu tới giảng viên phụ trách dạy, và danh sách các nhóm sinh viên tham dự lớp. Nó cũng lưu số chỗ cần có trong phòng (tổng số sinh viên của các nhóm) và thời lượng của lớp (tính bằng giờ).
+Đối tượng `CourseClass` giữ tham chiếu tới môn học mà lớp thuộc về, tham chiếu tới giảng viên phụ trách dạy và thời lượng của lớp (tính bằng giờ).
 
 **Nhiễm sắc thể (`Chromosome`)**
 Việc đầu tiên cần cân nhắc khi làm việc với thuật toán di truyền là cách biểu diễn lời giải sao cho thuận tiện cho các phép toán lai ghép (crossover) và biến dị (mutation). Đồng thời, ta cũng cần biết lời giải đó tốt đến đâu, nói cách khác là phải tính được giá trị độ thích nghi (fitness) của lời giải.
@@ -54,14 +50,12 @@ Kết quả sẽ được hiển thị dưới dạng bảng HTML. Chương trì
 
 Bây giờ cần gán một giá trị độ thích nghi cho nhiễm sắc thể. Như đã nói ở trên, chỉ có các ràng buộc cứng được dùng để tính độ thích nghi. Cách tính như sau:
 
-- Mỗi lớp học có thể nhận từ 0 đến 4 điểm, ứng với 4 tiêu chí `P`, `C`, `G`, `S`.
+- Mỗi lớp học có thể nhận từ 0 đến 2 điểm, ứng với các tiêu chí `P`, `G`.
 - Nếu lớp học nằm trong phòng còn trống, tăng điểm của lớp đó.
-- Nếu phòng học có đủ số chỗ ngồi, tăng điểm của lớp.
 - Nếu giảng viên không có lớp khác trong thời điểm đó, tăng thêm một điểm cho lớp.
-- Điều cuối cùng cần kiểm tra là liệu có nhóm sinh viên nào tham dự lớp đó có lớp khác cùng thời điểm hay không, nếu không thì tăng điểm cho lớp.
 - Nếu một lớp vi phạm quy tắc, điểm của tiêu chí đó là `1 - trọng số phạt` thay vì `1`. Trọng số phạt nằm trong khoảng 0 đến 1; `0` nghĩa là không phạt, `1` nghĩa là mất trọn điểm của tiêu chí.
 
-Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó `điểm_tối_đa = số_lớp_học × 4`. Giá trị độ thích nghi nằm trong khoảng từ 0 đến 1.
+Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó `điểm_tối_đa = số_lớp_học × 2`. Giá trị độ thích nghi nằm trong khoảng từ 0 đến 1.
 
 > **Lưu ý về cơ chế phạt:** Vì các ràng buộc cứng chỉ bị trừ điểm chứ không bị loại bỏ nhiệm vụ, nên luôn tồn tại một lời giải khả thi. Thuật toán tiến dần đưa giá trị độ thích nghi về gần 1, và dừng lại khi đạt ngưỡng (mặc định là 0,999).
 
@@ -89,8 +83,7 @@ Các loại đối tượng:
 - `prof` - mô tả một giảng viên.
 - `course` - mô tả một môn học.
 - `room` - mô tả một phòng học.
-- `group` - mô tả một nhóm sinh viên.
-- `class` - mô tả một lớp học, ràng buộc giảng viên, môn học và nhóm sinh viên.
+- `class` - mô tả một lớp học, ràng buộc giảng viên và môn học.
 
 Cấu trúc các khoá:
 
@@ -104,52 +97,41 @@ Cấu trúc các khoá:
 
 **room:**
 `name` (chuỗi, bắt buộc) - tên của phòng học.
-`size` (số, bắt buộc) - số chỗ ngồi trong phòng.
-
-**group:**
-`id` (số, bắt buộc) - mã của nhóm sinh viên.
-`name` (chuỗi, bắt buộc) - tên của nhóm sinh viên.
-`size` (số, bắt buộc) - số sinh viên trong nhóm.
 
 **class:**
 `professor` (số, bắt buộc) - mã của giảng viên; ràng buộc giảng viên vào một lớp học.
 `course` (số, bắt buộc) - mã của môn học; ràng buộc môn học vào một lớp học.
-`group` hoặc `groups` (số hoặc mảng số, bắt buộc) - mã của nhóm sinh viên; ràng buộc nhóm sinh viên vào một lớp học; mỗi lớp học có thể được ràng buộc với nhiều nhóm sinh viên.
 `duration` (số, tuỳ chọn) - thời lượng lớp học (tính bằng giờ); nếu không khai báo thì mặc định là 1.
 
 > **Lưu ý:** tiêu chí máy tính (`M`) và khóa `lab` đã được bỏ hoàn toàn khỏi bài toán.
 > Tệp cấu hình không cần khai báo `lab` cho phòng hay lớp học; nếu tệp cũ còn khóa này,
 > chương trình sẽ bỏ qua. Xem mục "Trọng số tiêu chí" bên dưới.
 
-Lưu ý: các đối tượng giảng viên, nhóm sinh viên và môn học phải được định nghĩa trước khi được ràng buộc vào một đối tượng lớp học.
+Lưu ý: các đối tượng giảng viên và môn học phải được định nghĩa trước khi được ràng buộc vào một đối tượng lớp học.
 
 ## Ví dụ dữ liệu mẫu
 
-Tệp `GaSchedule.json` đi kèm chứa: 13 giảng viên, 8 môn học, 2 phòng học (một phòng 24 chỗ, một phòng 60 chỗ), 4 nhóm sinh viên 19 người và 27 lớp học.
+Tệp `GaSchedule.json` đi kèm chứa: 13 giảng viên, 8 môn học, 2 phòng học và 38 lớp học.
 
 ```json
 [
     { "prof":   { "id": 1, "name": "Nguyễn Văn An" } },
     { "course": { "id": 1, "name": "Lập trình Python" } },
-    { "room":   { "name": "Phòng 201", "size": 24 } },
-    { "group":  { "id": 1, "name": "K19 nhóm 1", "size": 19 } },
-    { "class":  { "professor": 1, "course": 1, "duration": 2,
-                  "groups": [1, 2] } }
+    { "room":   { "name": "Phòng 201" } },
+    { "class":  { "professor": 1, "course": 1, "duration": 2 } }
 ]
 ```
 
 ## Trọng số tiêu chí
 
-Bốn tiêu chí được lưu trong `model/Criteria.py`. Trọng số là **mức phạt** khi lớp học vi phạm:
+Hai tiêu chí được lưu trong `model/Criteria.py`. Trọng số là **mức phạt** khi lớp học vi phạm:
 
 | Mã | Tiêu chí | Trọng số phạt |
 |---|---|---|
 | `P` | Phòng học không bị trùng lịch | 1.0 |
-| `C` | Phòng học có đủ chỗ ngồi | 0.5 |
 | `G` | Giảng viên không bị trùng lịch | 1.0 |
-| `S` | Nhóm sinh viên không bị trùng lịch | 1.0 |
 
-Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - trọng số`. Vì vậy `P`, `G`, `S` là các tiêu chí nghiêm: vi phạm sẽ mất trọn 1 điểm; `C` nhẹ hơn: vi phạm chỉ mất 0.5 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
+Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - trọng số`. Vì vậy `P` và `G` là các tiêu chí nghiêm: vi phạm sẽ mất trọn 1 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
 
 # Hiệu năng
 
@@ -227,7 +209,7 @@ html_result = HtmlOutput.getResult(alg.result, history=Tracer.get_history())
 
 Nếu truyền thêm `history=Tracer.get_history()`, tài liệu HTML sẽ có:
 - biểu đồ đường **Fitness qua các thế hệ** thể hiện mức tăng/giảm của fitness qua mọi thế hệ đã chạy, kèm các chỉ số bắt đầu, cao nhất và cuối cùng;
-- các khối **Thời khóa biểu qua các bước** cho phép mở từng bước trung gian để xem lịch tương ứng, kèm badge số lớp đạt từng tiêu chí `P/C/G/S`.
+- các khối **Thời khóa biểu qua các bước** cho phép mở từng bước trung gian để xem lịch tương ứng, kèm badge số lớp đạt từng tiêu chí `P/G`.
 
 Gọi `Tracer.reset()` trước khi chạy để xóa lịch sử của lần chạy trước. Nếu không truyền `history`, HTML chỉ hiển thị kết quả cuối cùng như trước đây. Mặc định tối đa 60 bước tiêu biểu được vẽ lịch chi tiết; có thể đổi bằng `HtmlOutput.MAX_STEP_PANELS`.
 
@@ -243,24 +225,22 @@ Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaSc
 
 - Phần tiêu đề và thống kê độ phù hợp.
 - **Thông số thuật toán**: khối nằm trên phần chú thích và dữ liệu đầu vào, mở sẵn để chỉnh kích thước quần thể, lai ghép, đột biến, điều kiện dừng và fitness mục tiêu; nút **↻ Chạy lại** nằm ở phần đầu khối.
-- **Chú thích 4 tiêu chí** với ký hiệu `P/C/G/S`, được giữ cố định khi cuộn trang.
+- **Chú thích 2 tiêu chí** với ký hiệu `P/G`, được giữ cố định khi cuộn trang.
 - **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 12 hàng tương ứng 12 tiết và 5 cột tương ứng từ thứ hai đến thứ sáu.
-- **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học, phòng học và nhóm sinh viên, kèm số lớp, số giờ và sức chứa để đối chiếu với kết quả xếp lịch.
+- **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học và phòng học, kèm số giờ và sức chứa để đối chiếu với kết quả xếp lịch. Bảng giảng viên không hiển thị số lớp học phần mà giảng viên đảm nhận.
 - **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
-- **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/C/G/S` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
+- **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/G` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
 
 Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần thời khóa biểu cuối cùng. Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
 
-- Tên môn học, tên giảng viên, các nhóm sinh viên tham dự và nhãn thời lượng (ví dụ `2 tiết`).
+- Tên môn học, tên giảng viên và nhãn thời lượng (ví dụ `2 tiết`).
 - Nếu nhiều lớp cùng được xếp vào một phòng, cùng ngày và cùng tiết (vi phạm tiêu chí `P`), tất cả vẫn được hiển thị: các thẻ lớp học xếp chồng trong ô kèm nhãn `Trùng phòng`; những tiết tiếp theo của lớp kéo dài được đánh dấu `Tiếp tiết`.
-- Bốn ký hiệu nhỏ mô tả trạng thái kiểm tra ràng buộc, **xanh lá là đạt, đỏ là vi phạm** (đưa chuột vào sẽ hiện giải thích):
+- Hai ký hiệu nhỏ mô tả trạng thái kiểm tra ràng buộc, **xanh lá là đạt, đỏ là vi phạm** (đưa chuột vào sẽ hiện giải thích):
 
 | Ký hiệu | Ý nghĩa |
 |---|---|
 | `P` | Phòng học không bị trùng lịch |
-| `C` | Phòng học có đủ chỗ ngồi |
 | `G` | Giảng viên không bị trùng lịch dạy |
-| `S` | Nhóm sinh viên không bị trùng lịch học |
 
 # Theo dõi từng bước khi chạy
 
@@ -268,30 +248,28 @@ Tệp `Trace.py` in ra console thông tin đầu vào và tiến trình tối ư
 
 **0. Thông tin đầu vào** — in ra trước khi thuật toán bắt đầu chạy
 
-Gồm 6 bảng: giảng viên, môn học, phòng học, nhóm sinh viên, toàn bộ danh sách lớp học, và thống kê tổng thể.
+Gồm 5 bảng: giảng viên, môn học, phòng học, toàn bộ danh sách lớp học, và thống kê tổng thể.
 
 ```
 THÔNG TIN ĐẦU VÀO
 Tệp cấu hình : /GaSchedule.json
-Quy mô       : 13 giảng viên, 8 môn học, 2 phòng học, 4 nhóm sinh viên, 27 lớp học
+Quy mô       : 13 giảng viên · 8 môn học · 2 phòng học · 38 lớp học
 
   GIẢNG VIÊN
-  Mã    Họ tên                     Số lớp   Danh sách môn dạy
-  1     Nguyễn Văn An              2        Lập trình Python
+  Mã    Họ tên                     Danh sách môn dạy
+  1     Nguyễn Văn An               Lập trình Python
   ...
 
   LỚP HỌC
-  Mã    Môn học                    Giảng viên      Nhóm sinh viên         Thời lượng Số chỗ cần
-  0     Lập trình Python           Nguyễn Văn An   K19 nhóm 1+K19 nhóm 2   2 tiết    38 chỗ
-  2     Lập trình Python           Đỗ Thị Lan      K19 nhóm 1             3 tiết    19 chỗ
+  Mã    Môn học                    Giảng viên      Thời lượng
+  0     Lập trình Python           Nguyễn Văn An   2 tiết
+  2     Lập trình Python           Đỗ Thị Lan      3 tiết
   ...
 
   THỐNG KÊ
-  Tổng số giờ học trong tuần : 58 giờ (27 lớp, trung bình 2.1 giờ/lớp)
+  Tổng số giờ học trong tuần : 80 giờ (38 lớp, trung bình 2.1 giờ/lớp)
   Sức chứa của hệ thống phòng: 12 tiết/ngày x 5 ngày x 2 phòng = 120 giờ
   Tỉ lệ sử dụng phòng       : 48.3%
-  Lớn nhất trong 1 lớp      : 57 chỗ | Phòng lớn nhất: 60 chỗ -> đủ
-  Tổng số sinh viên         : 76 người / 4 nhóm
 ```
 
 Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức chứa phòng trước khi chạy thuật toán.
@@ -300,13 +278,13 @@ Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức c
 
 ```
 THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 100  | Số lần không cải thiện: 6     | Thời gian:   3.73s
-  Tiêu chí đạt (đạt/tổng): P=19/27   C=21/27   G=27/27   S=20/27
+  Tiêu chí đạt (đạt/tổng): P=19/27   G=27/27
 ```
 
 **2. Bảng thời khóa biểu đầy đủ** của cá thể tốt nhất, in lặp lại mỗi 10 thế hệ. Ta có thể quan sát lịch được sắp xếp lại dần như thế nào. Dấu `^` nghĩa là tiết tiếp theo của cùng một lớp đang kéo dài:
 
 ```
-  +-- PHÒNG Phòng 201 (24 chỗ) --------------------------------------------
+  +-- PHÒNG Phòng 201 ----------------------------------------------------
   +------------------------------------------------------------------------------------
   | Tiết              | T2                        | T3                        | ...
   +------------------------------------------------------------------------------------
@@ -316,12 +294,12 @@ THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 10
   +------------------------------------------------------------------------------------
 ```
 
-**3. Chi tiết từng lớp học** kèm 4 cờ tiêu chí, in mỗi 50 thế hệ. `-` là đạt, `X` là vi phạm:
+**3. Chi tiết từng lớp học** kèm 2 cờ tiêu chí, in mỗi 50 thế hệ. `-` là đạt, `X` là vi phạm:
 
 ```
-  Mã   Môn học                      Giảng viên           Nhóm SV         Ngày  Tiết        Phòng     P C G S
-  0    Lập trình Python             Nguyễn Văn An        K19 nhóm 1+K19  T6    tiết 8 (2h)   Phòng 102  ----  T2
-  4    Lập trình Python             Đỗ Thị Lan           K19 nhóm 3       T4    tiết 9 (3h)   Phòng 102  -X--
+  Mã   Môn học                      Giảng viên           Ngày  Tiết        Phòng     P G
+  0    Lập trình Python             Nguyễn Văn An        T6    tiết 8 (2h)   Phòng 102  --
+  4    Lập trình Python             Đỗ Thị Lan           T4    tiết 9 (3h)   Phòng 102  -X
 ```
 
 ## Tinh chỉnh mức độ chi tiết
