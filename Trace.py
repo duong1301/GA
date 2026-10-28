@@ -395,3 +395,45 @@ class Trace:
                 t.add(row)
             t.show("PHÒNG {}".format(room.Name))
             print()
+
+    @staticmethod
+    def professors(solution):
+        """In lịch giảng dạy của từng giảng viên, sắp xếp theo GV rồi theo ngày."""
+        configuration = solution.configuration
+
+        rows = []
+        for cc, reservation_index in solution.classes.items():
+            res = Reservation.parse(reservation_index)
+            room = configuration.getRoomById(res.Room)
+            rows.append((
+                cc.Professor.Id,
+                res.Day,
+                res.Time,
+                [
+                    cc.Professor.Name,
+                    cc.Course.Name,
+                    Trace.WEEK_DAYS[res.Day],
+                    "{} ({}h)".format(res.Time + 1, cc.Duration),
+                    "{} tiết".format(cc.Duration),
+                    room.Name if room else str(res.Room),
+                ],
+            ))
+
+        if not rows:
+            return
+
+        rows.sort(key=lambda item: (item[0], item[1], item[2]))
+
+        t = Table(
+            ["Giảng viên", "Môn học", "Ngày", "Tiết", "Thời lượng", "Phòng"],
+            ["l", "l", "c", "c", "c", "l"],
+            maxWidth=24,
+        )
+        for _, _, _, row in rows:
+            t.add(row)
+
+        print()
+        print("═" * 96)
+        print("  LỊCH GIẢNG DẠY THEO GIẢNG VIÊN".ljust(96))
+        print("═" * 96)
+        t.show()

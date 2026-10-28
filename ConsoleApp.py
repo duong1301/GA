@@ -84,6 +84,10 @@ def run_schedule(file_name, parameters=None):
     )
     Tracer.reset()
     alg.run(minFitness=parameters["minFitness"])
+
+    # In lịch giảng dạy của từng giảng viên theo lời giải tốt nhất
+    Tracer.professors(alg.result)
+
     html_result = HtmlOutput.getResult(
         alg.result,
         history=Tracer.get_history(),

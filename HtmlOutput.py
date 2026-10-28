@@ -561,6 +561,35 @@ class HtmlOutput:
             border: 1px solid var(--border);
         }
 
+        .tag-room {
+            color: #6d28d9;
+            background: #f5f3ff;
+            border: 1px solid #ddd6fe;
+        }
+
+        .prof-item > summary {
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .prof-item > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .prof-item > summary::marker {
+            content: "";
+        }
+
+        .prof-item > summary::after {
+            content: "▾";
+            color: var(--muted);
+            font-size: .9rem;
+        }
+
+        .prof-item[open] > summary::after {
+            content: "▴";
+        }
+
         .crits {
             display: flex;
             gap: 4px;
@@ -1651,7 +1680,9 @@ class HtmlOutput:
         return f'<td class="slot filled">{content}</td>'
 
     @staticmethod
-    def getRoomTable(room, roomId, entries_by_slot, overlapping_slots):
+    def getScheduleTable(key, entries_by_slot, overlapping_slots,
+                         overlap_label="Trùng phòng", caption=""):
+        """Dựng bảng lịch 12 tiết × 5 ngày cho một khóa (phòng hoặc giảng viên)."""
         rows = []
         covered = {
             dayId: set()
@@ -1665,13 +1696,13 @@ class HtmlOutput:
                     # Ô đã được phủ bởi rowspan của lớp học ở tiết phía trên.
                     continue
 
-                day_entries = entries_by_slot.get((roomId, dayId), {})
+                day_entries = entries_by_slot.get((key, dayId), {})
                 slot_entries = day_entries.get(periodId, [])
                 if not slot_entries:
                     cells.append('<td class="slot empty"></td>')
                     continue
 
-                has_overlap = (roomId, dayId) in overlapping_slots
+                has_overlap = (key, dayId) in overlapping_slots
                 if not has_overlap and len(slot_entries) == 1:
                     entry = slot_entries[0]
                     if entry["start"] == periodId:
@@ -1697,7 +1728,7 @@ class HtmlOutput:
                 # Trùng phòng: xếp chồng mọi lớp đang diễn ra trong cùng ô.
                 cards = []
                 if len(slot_entries) > 1:
-                    cards.append('<div class="slot-warning">Trùng phòng</div>')
+                    cards.append(f'<div class="slot-warning">{overlap_label}</div>')
                 for entry in slot_entries:
                     if entry["start"] == periodId:
                         cards.append(
@@ -1728,6 +1759,29 @@ class HtmlOutput:
         )
 
         return (
+            '<table class="schedule">'
+            f'<caption class="sr-only">{html.escape(caption)}</caption>'
+            '<thead><tr>'
+            '<th class="corner" scope="col">Tiết / Ngày</th>'
+            f'{day_headers}'
+            '</tr></thead>'
+            '<tbody>'
+            + "".join(rows) +
+            '</tbody>'
+            '</table>'
+        )
+
+    @staticmethod
+    def getRoomTable(room, roomId, entries_by_slot, overlapping_slots):
+        """Bảng thời khóa biểu của một phòng học."""
+        table = HtmlOutput.getScheduleTable(
+            roomId,
+            entries_by_slot,
+            overlapping_slots,
+            overlap_label="Trùng phòng",
+            caption=f"Thời khóa biểu phòng {room.Name}",
+        )
+        return (
             '<section class="room">'
             '<div class="room-head">'
             '<div class="room-title">'
@@ -1738,19 +1792,132 @@ class HtmlOutput:
             '<p class="scroll-hint">Vuốt ngang để xem đủ các ngày '
             '<span aria-hidden="true">→</span></p>'
             '<div class="table-wrap">'
-            '<table class="schedule">'
-            f'<caption class="sr-only">Thời khóa biểu phòng {html.escape(room.Name)}</caption>'
-            '<thead><tr>'
-            '<th class="corner" scope="col">Tiết / Ngày</th>'
-            f'{day_headers}'
-            '</tr></thead>'
-            '<tbody>'
-            + "".join(rows) +
-            '</tbody>'
-            '</table>'
+            f'{table}'
             '</div>'
             '</section>'
         )
+
+    @staticmethod
+    def generateProfessorTimeTable(solution):
+        """Dựng lịch theo giảng viên/ngày/tiết; mỗi ô ghi môn học và phòng."""
+        entries_by_slot = defaultdict(lambda: defaultdict(list))
+
+        for cc, reservation_index in solution.classes.items():
+            reservation = Reservation.parse(reservation_index)
+
+            dayId = reservation.Day + 1
+            startPeriod = reservation.Time + 1
+            profId = cc.Professor.Id
+            duration = cc.Duration
+
+            room = solution.configuration.getRoomById(reservation.Room)
+            room_name = room.Name if room is not None else f"Phòng {reservation.Room}"
+
+            entry = {
+                "start": startPeriod,
+                "duration": duration,
+                "html": (
+                    '<div class="course">'
+                    + html.escape(cc.Course.Name)
+                    + '</div>'
+                    '<div class="tags">'
+                    f'<span class="tag tag-room">{html.escape(room_name)}</span>'
+                    '</div>'
+                ),
+                "continued": (
+                    '<div class="course">'
+                    + html.escape(cc.Course.Name)
+                    + '</div>'
+                    '<div class="tags">'
+                    '<span class="tag tag-continued">Tiếp tiết</span>'
+                    '</div>'
+                ),
+            }
+
+            for offset in range(duration):
+                periodId = startPeriod + offset
+                if periodId >= HtmlOutput.ROOM_ROW_NUMBER:
+                    break
+                entries_by_slot[(profId, dayId)][periodId].append(entry)
+
+        overlapping_slots = {
+            key
+            for key, periods in entries_by_slot.items()
+            if any(len(entries) > 1 for entries in periods.values())
+        }
+        return entries_by_slot, overlapping_slots
+
+    @staticmethod
+    def getProfessorTable(professor, profId, entries_by_slot, overlapping_slots,
+                          total_hours, number_of_courses):
+        """Bảng thời khóa biểu của một giảng viên."""
+        table = HtmlOutput.getScheduleTable(
+            profId,
+            entries_by_slot,
+            overlapping_slots,
+            overlap_label="Trùng lịch giảng viên",
+            caption=f"Lịch giảng dạy của {professor.Name}",
+        )
+        return (
+            '<details class="room prof-item" open>'
+            '<summary class="room-head">'
+            '<div class="room-title">'
+            '<span class="room-kicker">Giảng viên</span>'
+            f'<h2>{html.escape(professor.Name)}</h2>'
+            '</div>'
+            '<div class="room-badges">'
+            f'<span class="badge">{total_hours} tiết/tuần</span>'
+            f'<span class="badge">{number_of_courses} môn</span>'
+            '</div>'
+            '</summary>'
+            '<p class="scroll-hint">Vuốt ngang để xem đủ các ngày '
+            '<span aria-hidden="true">→</span></p>'
+            '<div class="table-wrap">'
+            f'{table}'
+            '</div>'
+            '</details>'
+        )
+
+    @staticmethod
+    def getProfessorSections(solution):
+        """Tạo các bảng lịch giảng dạy của từng giảng viên."""
+        configuration = solution.configuration
+        entries_by_slot, overlapping_slots = HtmlOutput.generateProfessorTimeTable(
+            solution
+        )
+        if not entries_by_slot:
+            return (
+                '<div class="empty-state">'
+                'Chưa có lớp học nào được xếp lịch.'
+                '</div>'
+            )
+
+        # tổng số tiết và số môn của từng giảng viên trong tuần
+        hours = defaultdict(int)
+        courses = defaultdict(set)
+        for cc in solution.classes:
+            hours[cc.Professor.Id] += cc.Duration
+            courses[cc.Professor.Id].add(cc.Course.Name)
+
+        sections = []
+        for professor in sorted(
+            configuration._professors.values(), key=lambda item: item.Id
+        ):
+            profId = professor.Id
+            if profId not in hours:
+                # giảng viên không có lớp nào được xếp lịch
+                continue
+            sections.append(
+                HtmlOutput.getProfessorTable(
+                    professor,
+                    profId,
+                    entries_by_slot,
+                    overlapping_slots,
+                    hours[profId],
+                    len(courses[profId]),
+                )
+            )
+        return "".join(sections)
 
     @staticmethod
     def getRoomSections(solution):
@@ -2330,15 +2497,18 @@ class HtmlOutput:
     @staticmethod
     def getResult(solution, history=None, parameters=None):
         room_sections = HtmlOutput.getRoomSections(solution)
+        professor_sections = HtmlOutput.getProfessorSections(solution)
         return HtmlOutput.getDocument(
             solution,
             room_sections,
+            professor_sections=professor_sections,
             history=history,
             parameters=parameters,
         )
 
     @staticmethod
-    def getDocument(solution, room_sections, history=None, parameters=None):
+    def getDocument(solution, room_sections, professor_sections="",
+                    history=None, parameters=None):
         configuration = solution.configuration
         total_hours = sum(cc.Duration for cc in configuration.courseClasses)
 
@@ -2433,6 +2603,19 @@ class HtmlOutput:
             '</div>\n'
             '<div class="rooms">\n'
             f'{room_sections}\n'
+            '</div>\n'
+            '</section>\n'
+            '<section class="result-section" aria-labelledby="professors-title">\n'
+            '<div class="section-head">\n'
+            '<div>\n'
+            '<p class="section-kicker">Lịch giảng dạy</p>\n'
+            '<h2 id="professors-title">Lịch giảng dạy theo giảng viên</h2>\n'
+            '</div>\n'
+            '<p class="section-note">Mỗi bảng là thời khóa biểu trong tuần của một giảng viên; '
+            'bấm vào tên để thu gọn hoặc mở rộng.</p>\n'
+            '</div>\n'
+            '<div class="rooms">\n'
+            f'{professor_sections}\n'
             '</div>\n'
             '</section>\n'
             f'{history_html}\n'

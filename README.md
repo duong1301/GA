@@ -227,11 +227,12 @@ Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaSc
 - **Thông số thuật toán**: khối nằm trên phần chú thích và dữ liệu đầu vào, mở sẵn để chỉnh kích thước quần thể, lai ghép, đột biến, điều kiện dừng và fitness mục tiêu; nút **↻ Chạy lại** nằm ở phần đầu khối.
 - **Chú thích 2 tiêu chí** với ký hiệu `P/G`, được giữ cố định khi cuộn trang.
 - **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 12 hàng tương ứng 12 tiết và 5 cột tương ứng từ thứ hai đến thứ sáu.
+- **Lịch giảng dạy theo giảng viên**: nằm ngay dưới thời khóa biểu cuối cùng; mỗi giảng viên một bảng 12 tiết × 5 ngày, kèm badge số tiết/tuần và số môn trong tuần; mỗi ô ghi môn học cùng tên phòng (nhãn tím). Bấm vào tên giảng viên để thu gọn hoặc mở rộng bảng; nếu vi phạm tiêu chí `G`, ô bị trùng được xếp chồng kèm nhãn `Trùng lịch giảng viên`.
 - **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học và phòng học, kèm số giờ và sức chứa để đối chiếu với kết quả xếp lịch. Bảng giảng viên không hiển thị số lớp học phần mà giảng viên đảm nhận.
 - **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
 - **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/G` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
 
-Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần thời khóa biểu cuối cùng. Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
+Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần kết quả (thời khóa biểu phòng và lịch giảng dạy của giảng viên). Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
 
 - Tên môn học, tên giảng viên và nhãn thời lượng (ví dụ `2 tiết`).
 - Nếu nhiều lớp cùng được xếp vào một phòng, cùng ngày và cùng tiết (vi phạm tiêu chí `P`), tất cả vẫn được hiển thị: các thẻ lớp học xếp chồng trong ô kèm nhãn `Trùng phòng`; những tiết tiếp theo của lớp kéo dài được đánh dấu `Tiếp tiết`.
@@ -244,7 +245,7 @@ Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đ
 
 # Theo dõi từng bước khi chạy
 
-Tệp `Trace.py` in ra console thông tin đầu vào và tiến trình tối ưu hoá. Đồng thời, mỗi thế hệ được lưu vào bộ nhớ để `HtmlOutput` vẽ biểu đồ fitness và thời khóa biểu của các bước (xem mục "Giải thích kết quả xuất ra").
+Tệp `Trace.py` in ra console thông tin đầu vào, tiến trình tối ưu hoá và lịch giảng dạy của từng giảng viên sau khi có kết quả. Đồng thời, mỗi thế hệ được lưu vào bộ nhớ để `HtmlOutput` vẽ biểu đồ fitness và thời khóa biểu của các bước (xem mục "Giải thích kết quả xuất ra").
 
 **0. Thông tin đầu vào** — in ra trước khi thuật toán bắt đầu chạy
 
@@ -300,6 +301,18 @@ THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 10
   Mã   Môn học                      Giảng viên           Ngày  Tiết        Phòng     P G
   0    Lập trình hướng đối tượng    Nguyễn Văn An        T6    tiết 8 (3h)   Phòng 102  --
   4    Lập trình hướng đối tượng    Vũ Anh Đức           T4    tiết 9 (2h)   Phòng 102  -X
+```
+
+**4. Lịch giảng dạy theo giảng viên** — in ra một lần, sau khi thuật toán chạy xong
+
+Mỗi lớp học là một dòng, sắp xếp theo giảng viên rồi theo ngày và tiết, giúp xem nhanh một giảng viên dạy môn nào, ngày nào, tiết mấy, phòng nào:
+
+```
+  LỊCH GIẢNG DẠY THEO GIẢNG VIÊN
+  Giảng viên        Môn học                 Ngày  Tiết      Thời lượng  Phòng
+  Nguyễn Văn An     Cơ sở dữ liệu           T2    7 (2h)     2 tiết      Phòng 201
+  Nguyễn Văn An     Cấu trúc dữ liệu...     T4    3 (3h)     3 tiết      Phòng 102
+  ...
 ```
 
 ## Tinh chỉnh mức độ chi tiết
