@@ -80,49 +80,49 @@
 	{
 		"course": {
 			"id": 1,
-			"name": "Lập trình Python"
+			"name": "Lập trình hướng đối tượng"
 		}
 	},
 	{
 		"course": {
 			"id": 2,
-			"name": "Kiến trúc máy tính"
+			"name": "Cấu trúc dữ liệu và giải thuật"
 		}
 	},
 	{
 		"course": {
 			"id": 3,
-			"name": "Tin học văn phòng"
+			"name": "Cơ sở dữ liệu"
 		}
 	},
 	{
 		"course": {
 			"id": 4,
-			"name": "Tiếng Anh"
+			"name": "Mạng máy tính"
 		}
 	},
 	{
 		"course": {
 			"id": 5,
-			"name": "Toán rời rạc I"
+			"name": "Hệ điều hành"
 		}
 	},
 	{
 		"course": {
 			"id": 6,
-			"name": "Đại số tuyến tính"
+			"name": "Công nghệ Web"
 		}
 	},
 	{
 		"course": {
 			"id": 7,
-			"name": "Tin học đại cương I"
+			"name": "Trí tuệ nhân tạo"
 		}
 	},
 	{
 		"course": {
 			"id": 8,
-			"name": "Quản trị và bảo trì hệ thống I"
+			"name": "An toàn thông tin"
 		}
 	},
 	{
