@@ -257,13 +257,13 @@ Quy mô       : 13 giảng viên · 8 môn học · 2 phòng học · 38 lớp h
 
   GIẢNG VIÊN
   Mã    Họ tên                     Danh sách môn dạy
-  1     Nguyễn Văn An               Lập trình hướng đối tượng
+  1     Nguyễn Văn An               Cơ sở dữ liệu, Cấu trúc dữ liệu...
   ...
 
   LỚP HỌC
   Mã    Môn học                    Giảng viên      Thời lượng
-  0     Lập trình hướng đối tượng           Nguyễn Văn An   2 tiết
-  2     Lập trình hướng đối tượng           Đỗ Thị Lan      3 tiết
+  0     Lập trình hướng đối tượng  Nguyễn Văn An   3 tiết
+  2     Lập trình hướng đối tượng  Lê Quốc Cường   3 tiết
   ...
 
   THỐNG KÊ
@@ -288,7 +288,7 @@ THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 10
   +------------------------------------------------------------------------------------
   | Tiết              | T2                        | T3                        | ...
   +------------------------------------------------------------------------------------
-  | Tiết 2 (8-9)      |                           | Lập trình hướng đối tượng / Đỗ Thị | ...
+  | Tiết 2 (8-9)      |                           | Lập trình hướng đối tượng / Trần Thị | ...
   | Tiết 3 (9-10)     | An toàn thông tin       | ^                         | ...
   | Tiết 4 (10-11)    |                           | ^                         | ...
   +------------------------------------------------------------------------------------
@@ -298,8 +298,8 @@ THẾ HỆ 10     | Độ phù hợp tốt nhất: 0.862963 | Số cá thể: 10
 
 ```
   Mã   Môn học                      Giảng viên           Ngày  Tiết        Phòng     P G
-  0    Lập trình hướng đối tượng             Nguyễn Văn An        T6    tiết 8 (2h)   Phòng 102  --
-  4    Lập trình hướng đối tượng             Đỗ Thị Lan           T4    tiết 9 (3h)   Phòng 102  -X
+  0    Lập trình hướng đối tượng    Nguyễn Văn An        T6    tiết 8 (3h)   Phòng 102  --
+  4    Lập trình hướng đối tượng    Vũ Anh Đức           T4    tiết 9 (2h)   Phòng 102  -X
 ```
 
 ## Tinh chỉnh mức độ chi tiết
