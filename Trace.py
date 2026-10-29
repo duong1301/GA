@@ -43,11 +43,17 @@ class Table:
         self.aligns = list(aligns) if aligns else ["l"] * len(self.headers)
         self.maxWidth = maxWidth
         self.rows = []
+        self.footer = None
         self.indent = " "
 
     def add(self, row):
         # Ô có thể chứa nhiều dòng, phân tách bằng "\n"
         self.rows.append(["" if v is None else str(v) for v in row])
+        return self
+
+    def add_footer(self, row):
+        # Hàng tổng cộng, đặt dưới cùng của bảng sau một kẻ ngăn
+        self.footer = ["" if v is None else str(v) for v in row]
         return self
 
     # ---- đo ----
@@ -112,6 +118,11 @@ class Table:
         for row in self.rows:
             lines.extend(self.indent + ln
                          for ln in self._render_multiline(row, widths, aligns))
+        if self.footer:
+            lines.append(self.indent + self._rule(self.LT, self.X, self.RT))
+            lines.extend(self.indent + ln
+                         for ln in self._render_multiline(self.footer,
+                                                          widths, aligns))
         lines.append(self.indent + self._rule(self.BL, self.BT, self.BR))
         return "\n".join(lines)
 
@@ -223,12 +234,17 @@ class Trace:
 
     @staticmethod
     def _courses(configuration):
-        t = Table(["Mã", "Tên môn học", "Số lớp", "Số giờ / tuần"],
+        t = Table(["Mã", "Tên môn học", "Số lớp", "Số tiết / tuần"],
                   ["r", "l", "r", "r"])
+        totalClasses = 0
+        totalPeriods = 0
         for course in configuration._courses.values():
             classes = [cc for cc in configuration.courseClasses if cc.Course == course]
+            totalClasses += len(classes)
+            totalPeriods += sum(cc.Duration for cc in classes)
             t.add([course.Id, course.Name, len(classes),
                    sum(cc.Duration for cc in classes)])
+        t.add_footer(["", "Tổng cộng", totalClasses, totalPeriods])
         t.show("MÔN HỌC")
 
     @staticmethod

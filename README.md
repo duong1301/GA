@@ -112,7 +112,7 @@ Lưu ý: các đối tượng giảng viên và môn học phải được đị
 
 ## Ví dụ dữ liệu mẫu
 
-Tệp `GaSchedule.json` đi kèm chứa: 13 giảng viên, 8 môn học, 2 phòng học và 38 lớp học.
+Tệp `GaSchedule.json` đi kèm chứa: 10 giảng viên, 8 môn học, 3 phòng học và 38 lớp học.
 
 ```json
 [
@@ -257,7 +257,7 @@ Gồm 5 bảng: giảng viên, môn học, phòng học, toàn bộ danh sách l
 ```
 THÔNG TIN ĐẦU VÀO
 Tệp cấu hình : /GaSchedule.json
-Quy mô       : 13 giảng viên · 8 môn học · 2 phòng học · 38 lớp học
+Quy mô       : 10 giảng viên · 8 môn học · 3 phòng học · 38 lớp học
 
   GIẢNG VIÊN
   Mã    Họ tên                     Danh sách môn dạy
@@ -272,8 +272,8 @@ Quy mô       : 13 giảng viên · 8 môn học · 2 phòng học · 38 lớp h
 
   THỐNG KÊ
   Tổng số giờ học trong tuần : 80 giờ (38 lớp, trung bình 2.1 giờ/lớp)
-  Sức chứa của hệ thống phòng: 10 tiết/ngày x 5 ngày x 2 phòng = 100 giờ
-  Tỉ lệ sử dụng phòng       : 80.0%
+  Sức chứa của hệ thống phòng: 10 tiết/ngày x 5 ngày x 3 phòng = 150 giờ
+  Tỉ lệ sử dụng phòng       : 53.3%
 ```
 
 Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức chứa phòng trước khi chạy thuật toán.

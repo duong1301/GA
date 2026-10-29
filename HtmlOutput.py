@@ -704,6 +704,66 @@ class HtmlOutput:
             margin-top: 16px;
         }
 
+        .result-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            width: fit-content;
+            margin-top: 18px;
+            padding: 6px;
+            background: var(--surface-soft);
+            border: 1px solid rgba(226, 232, 240, .95);
+            border-radius: 14px;
+        }
+
+        .result-tab {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            padding: 9px 18px;
+            border-radius: 10px;
+            font: inherit;
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--muted);
+            cursor: pointer;
+            transition: background .15s ease, color .15s ease,
+                        box-shadow .15s ease;
+        }
+
+        .result-tab:hover {
+            color: var(--brand);
+        }
+
+        .result-tab[aria-selected="true"] {
+            background: var(--surface);
+            color: var(--brand);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .result-tab:focus-visible {
+            outline: 2px solid var(--brand);
+            outline-offset: 2px;
+        }
+
+        .result-panel {
+            margin-top: 16px;
+        }
+
+        .result-panel .rooms {
+            margin-top: 0;
+        }
+
+        .result-panel[hidden] {
+            display: none;
+        }
+
+        .tab-note {
+            margin: 0 4px 12px;
+            color: var(--muted);
+            font-size: .78rem;
+        }
+
         .input-section {
             margin-top: 28px;
             overflow: hidden;
@@ -1012,6 +1072,12 @@ class HtmlOutput:
 
         .input-table tbody tr:hover {
             background: #f8fbff;
+        }
+
+        .input-table tfoot td {
+            border-top: 2px solid var(--border);
+            background: var(--surface-soft);
+            font-weight: 600;
         }
 
         .input-table .num {
@@ -1597,6 +1663,38 @@ class HtmlOutput:
                     rerun();
                 });
             }
+        })();
+
+        // Chuyển tab giữa lịch theo phòng học và lịch theo giảng viên
+        (() => {
+            const tabs = Array.from(document.querySelectorAll(".result-tab"));
+            if (!tabs.length) return;
+
+            const select = active => {
+                tabs.forEach(tab => {
+                    const selected = tab === active;
+                    tab.setAttribute("aria-selected", String(selected));
+                    tab.tabIndex = selected ? 0 : -1;
+                    const panel = document.getElementById(
+                        tab.getAttribute("aria-controls")
+                    );
+                    if (panel) panel.hidden = !selected;
+                });
+            };
+
+            tabs.forEach((tab, index) => {
+                tab.addEventListener("click", () => select(tab));
+                tab.addEventListener("keydown", event => {
+                    const steps = { ArrowLeft: -1, ArrowRight: 1 };
+                    if (!(event.key in steps)) return;
+                    event.preventDefault();
+                    const next = tabs[
+                        (index + steps[event.key] + tabs.length) % tabs.length
+                    ];
+                    next.focus();
+                    select(next);
+                });
+            });
         })();
     </script>"""
 
@@ -2306,7 +2404,7 @@ class HtmlOutput:
         )
 
     @staticmethod
-    def getInputTable(headers, rows, aligns=None):
+    def getInputTable(headers, rows, aligns=None, footer=None):
         """Dựng một bảng HTML nhỏ cho phần dữ liệu đầu vào."""
         if aligns is None:
             aligns = ["l"] * len(headers)
@@ -2314,23 +2412,28 @@ class HtmlOutput:
         def align_class(align):
             return ' class="num"' if align == "r" else ""
 
+        def body_cells(values):
+            return "".join(
+                f'<td{align_class(aligns[i])}>{html.escape(str(value))}</td>'
+                for i, value in enumerate(values)
+            )
+
         head_cells = "".join(
             f'<th scope="col"{align_class(aligns[i])}>{html.escape(str(header))}</th>'
             for i, header in enumerate(headers)
         )
-        body_rows = []
-        for row in rows:
-            cells = "".join(
-                f'<td{align_class(aligns[i])}>{html.escape(str(value))}</td>'
-                for i, value in enumerate(row)
-            )
-            body_rows.append(f"<tr>{cells}</tr>")
+        body_rows = [f"<tr>{body_cells(row)}</tr>" for row in rows]
+        foot_html = (
+            f"<tfoot><tr>{body_cells(footer)}</tr></tfoot>"
+            if footer is not None else ""
+        )
 
         return (
             '<div class="input-table-wrap">'
             '<table class="input-table">'
             f'<thead><tr>{head_cells}</tr></thead>'
             f'<tbody>{"".join(body_rows)}</tbody>'
+            f'{foot_html}'
             '</table>'
             '</div>'
         )
@@ -2370,14 +2473,19 @@ class HtmlOutput:
 
         courses = sorted(configuration._courses.values(), key=lambda item: item.Id)
         course_rows = []
+        total_classes = 0
+        total_periods = 0
         for course in courses:
             course_classes = [cc for cc in classes if cc.Course.Id == course.Id]
+            total_classes += len(course_classes)
+            total_periods += sum(cc.Duration for cc in course_classes)
             course_rows.append([
                 course.Id,
                 course.Name,
                 len(course_classes),
                 sum(cc.Duration for cc in course_classes),
             ])
+        course_footer = ["", "Tổng cộng", total_classes, total_periods]
 
         capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM
         rooms = sorted(configuration._rooms.values(), key=lambda item: item.Id)
@@ -2400,9 +2508,10 @@ class HtmlOutput:
                 "Môn học",
                 len(course_rows),
                 HtmlOutput.getInputTable(
-                    ["Mã", "Môn học", "Số lớp", "Số giờ/tuần"],
+                    ["Mã", "Môn học", "Số lớp", "Số tiết/tuần"],
                     course_rows,
                     ["r", "l", "r", "r"],
+                    footer=course_footer,
                 ),
             ),
             HtmlOutput.getInputCard(
@@ -2620,23 +2729,31 @@ class HtmlOutput:
             '<p class="section-kicker">Kết quả cuối</p>\n'
             '<h2 id="result-title">Thời khóa biểu cuối cùng</h2>\n'
             '</div>\n'
-            '<p class="section-note">Lời giải tốt nhất sau khi thuật toán kết thúc.</p>\n'
+            '<p class="section-note">Lời giải tốt nhất sau khi thuật toán kết thúc; '
+            'chuyển tab để xem theo phòng học hoặc theo giảng viên.</p>\n'
             '</div>\n'
+            '<div class="result-tabs" role="tablist" '
+            'aria-label="Kiểu hiển thị thời khóa biểu">\n'
+            '<button class="result-tab" type="button" role="tab" '
+            'id="tab-rooms" aria-controls="panel-rooms" '
+            'aria-selected="true">Theo phòng học</button>\n'
+            '<button class="result-tab" type="button" role="tab" '
+            'id="tab-professors" aria-controls="panel-professors" '
+            'aria-selected="false" tabindex="-1">Theo giảng viên</button>\n'
+            '</div>\n'
+            '<div class="result-panel" role="tabpanel" '
+            'id="panel-rooms" aria-labelledby="tab-rooms">\n'
             '<div class="rooms">\n'
             f'{room_sections}\n'
             '</div>\n'
-            '</section>\n'
-            '<section class="result-section" aria-labelledby="professors-title">\n'
-            '<div class="section-head">\n'
-            '<div>\n'
-            '<p class="section-kicker">Lịch giảng dạy</p>\n'
-            '<h2 id="professors-title">Lịch giảng dạy theo giảng viên</h2>\n'
             '</div>\n'
-            '<p class="section-note">Mỗi bảng là thời khóa biểu trong tuần của một giảng viên; '
-            'bấm vào tên để thu gọn hoặc mở rộng.</p>\n'
-            '</div>\n'
+            '<div class="result-panel" role="tabpanel" '
+            'id="panel-professors" aria-labelledby="tab-professors" hidden>\n'
+            '<p class="tab-note">Mỗi bảng là thời khóa biểu trong tuần của một '
+            'giảng viên; bấm vào tên để thu gọn hoặc mở rộng.</p>\n'
             '<div class="rooms">\n'
             f'{professor_sections}\n'
+            '</div>\n'
             '</div>\n'
             '</section>\n'
             f'{history_html}\n'

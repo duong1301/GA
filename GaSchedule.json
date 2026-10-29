@@ -30,54 +30,6 @@
 		}
 	},
 	{
-		"prof": {
-			"id": 6,
-			"name": "Đặng Thị Giang"
-		}
-	},
-	{
-		"prof": {
-			"id": 7,
-			"name": "Hoàng Minh Hà"
-		}
-	},
-	{
-		"prof": {
-			"id": 8,
-			"name": "Bùi Văn Kiên"
-		}
-	},
-	{
-		"prof": {
-			"id": 9,
-			"name": "Đỗ Thị Lan"
-		}
-	},
-	{
-		"prof": {
-			"id": 10,
-			"name": "Nguyễn Tuấn Minh"
-		}
-	},
-	{
-		"prof": {
-			"id": 11,
-			"name": "Trương Thị Nga"
-		}
-	},
-	{
-		"prof": {
-			"id": 12,
-			"name": "Lê Văn Phúc"
-		}
-	},
-	{
-		"prof": {
-			"id": 13,
-			"name": "Phan Thị Quyên"
-		}
-	},
-	{
 		"course": {
 			"id": 1,
 			"name": "Lập trình hướng đối tượng"
@@ -126,6 +78,18 @@
 		}
 	},
 	{
+		"course": {
+			"id": 9,
+			"name": "Kỹ thuật phần mềm"
+		}
+	},
+	{
+		"course": {
+			"id": 10,
+			"name": "Đồ hoạ máy tính"
+		}
+	},
+	{
 		"room": {
 			"name": "Phòng 201"
 		}
@@ -136,6 +100,11 @@
 		}
 	},
 	{
+		"room": {
+			"name": "Phòng 303"
+		}
+	},
+	{
 		"class": {
 			"professor": 1,
 			"course": 1,
@@ -172,7 +141,7 @@
 	},
 	{
 		"class": {
-			"professor": 6,
+			"professor": 1,
 			"course": 1,
 			"duration": 2
 		}
@@ -193,6 +162,13 @@
 	},
 	{
 		"class": {
+			"professor": 2,
+			"course": 2,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
 			"professor": 3,
 			"course": 2,
 			"duration": 2
@@ -200,35 +176,28 @@
 	},
 	{
 		"class": {
-			"professor": 7,
+			"professor": 3,
 			"course": 2,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 8,
+			"professor": 5,
 			"course": 2,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 9,
-			"course": 2,
+			"professor": 2,
+			"course": 3,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 10,
-			"course": 2,
-			"duration": 2
-		}
-	},
-	{
-		"class": {
-			"professor": 1,
+			"professor": 3,
 			"course": 3,
 			"duration": 2
 		}
@@ -242,35 +211,28 @@
 	},
 	{
 		"class": {
-			"professor": 7,
+			"professor": 4,
 			"course": 3,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 10,
-			"course": 3,
+			"professor": 1,
+			"course": 4,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 11,
-			"course": 3,
+			"professor": 1,
+			"course": 4,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 12,
-			"course": 3,
-			"duration": 2
-		}
-	},
-	{
-		"class": {
-			"professor": 2,
+			"professor": 3,
 			"course": 4,
 			"duration": 2
 		}
@@ -284,57 +246,50 @@
 	},
 	{
 		"class": {
-			"professor": 8,
+			"professor": 5,
 			"course": 4,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 11,
+			"professor": 5,
 			"course": 4,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 12,
-			"course": 4,
-			"duration": 2
-		}
-	},
-	{
-		"class": {
-			"professor": 13,
-			"course": 4,
-			"duration": 2
-		}
-	},
-	{
-		"class": {
-			"professor": 3,
+			"professor": 2,
 			"course": 5,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 6,
+			"professor": 5,
 			"course": 5,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 8,
+			"professor": 2,
 			"course": 5,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 13,
+			"professor": 5,
 			"course": 5,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 1,
+			"course": 6,
 			"duration": 2
 		}
 	},
@@ -347,22 +302,15 @@
 	},
 	{
 		"class": {
-			"professor": 9,
+			"professor": 4,
 			"course": 6,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 10,
-			"course": 6,
-			"duration": 2
-		}
-	},
-	{
-		"class": {
-			"professor": 11,
-			"course": 6,
+			"professor": 4,
+			"course": 7,
 			"duration": 2
 		}
 	},
@@ -375,29 +323,120 @@
 	},
 	{
 		"class": {
-			"professor": 9,
+			"professor": 3,
+			"course": 8,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 8,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 8,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 1,
+			"course": 9,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 9,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 10,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 10,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 1,
+			"course": 6,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 1,
+			"course": 9,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 3,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 2,
+			"course": 10,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 2,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 3,
+			"course": 8,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
+			"course": 6,
+			"duration": 2
+		}
+	},
+	{
+		"class": {
+			"professor": 4,
 			"course": 7,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 6,
-			"course": 8,
+			"professor": 5,
+			"course": 5,
 			"duration": 2
 		}
 	},
 	{
 		"class": {
-			"professor": 7,
-			"course": 8,
-			"duration": 2
-		}
-	},
-	{
-		"class": {
-			"professor": 12,
-			"course": 8,
+			"professor": 5,
+			"course": 7,
 			"duration": 2
 		}
 	}
