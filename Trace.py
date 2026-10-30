@@ -301,6 +301,10 @@ class Trace:
         try:
             best = algorithm.result
             population_size = getattr(algorithm, "_populationSize", 0)
+            if not population_size:
+                # Thuật toán không lưu riêng quy mô quần thể, lấy theo số
+                # nhiễm sắc thể đang có để dòng tóm tắt không ghi 0.
+                population_size = len(getattr(algorithm, "_chromosomes", ()) or ())
             stagnation = 0 if bestNotEnhance is None else bestNotEnhance
             try:
                 Trace._record(best, generation, population_size, stagnation)

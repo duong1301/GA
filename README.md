@@ -211,9 +211,9 @@ html_result = HtmlOutput.getResult(alg.result, history=Tracer.get_history())
 
 Nếu truyền thêm `history=Tracer.get_history()`, tài liệu HTML sẽ có:
 - biểu đồ đường **Fitness qua các thế hệ** thể hiện mức tăng/giảm của fitness qua mọi thế hệ đã chạy, kèm các chỉ số bắt đầu, cao nhất và cuối cùng;
-- các khối **Thời khóa biểu qua các bước** cho phép mở từng bước trung gian để xem lịch tương ứng, kèm badge số lớp đạt từng tiêu chí `P/G/N`.
+- lưới **Thời khóa biểu qua các bước**: mỗi thế hệ là một ô (10 ô mỗi hàng) hiển thị fitness và số vi phạm `P/G/N`, bấm vào ô để xem thời khóa biểu của thế hệ đó ở khung bên dưới.
 
-Gọi `Tracer.reset()` trước khi chạy để xóa lịch sử của lần chạy trước. Nếu không truyền `history`, HTML chỉ hiển thị kết quả cuối cùng như trước đây. Mặc định tối đa 60 bước tiêu biểu được vẽ lịch chi tiết; có thể đổi bằng `HtmlOutput.MAX_STEP_PANELS`.
+Gọi `Tracer.reset()` trước khi chạy để xóa lịch sử của lần chạy trước. Nếu không truyền `history`, HTML chỉ hiển thị kết quả cuối cùng như trước đây. Mọi thế hệ đã ghi đều được vẽ thành một ô trong lưới 10 cột; thời khóa biểu của từng thế hệ được trình duyệt dựng lại từ dữ liệu gọn nhúng trong trang nên số thế hệ lớn cũng không làm file nặng.
 
 Project hiện chỉ dùng `GeneticAlgorithm`; các thuật toán tối ưu đa mục tiêu và siêu heuristic khác đã được lược bỏ để tập trung vào GA.
 
@@ -232,7 +232,7 @@ Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaSc
 - **Lịch giảng dạy theo giảng viên**: nằm ngay dưới thời khóa biểu cuối cùng; mỗi giảng viên một bảng 11 khung giờ × 5 ngày (giống bảng phòng, gồm hàng nghỉ trưa), kèm badge số tiết/tuần và số môn trong tuần; mỗi ô ghi môn học cùng tên phòng (nhãn tím). Bấm vào tên giảng viên để thu gọn hoặc mở rộng bảng; nếu vi phạm tiêu chí `G`, ô bị trùng được xếp chồng kèm nhãn `Trùng lịch giảng viên`.
 - **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học và phòng học, kèm số giờ và sức chứa để đối chiếu với kết quả xếp lịch. Bảng giảng viên không hiển thị số lớp học phần mà giảng viên đảm nhận.
 - **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
-- **Thời khóa biểu qua các bước**: các khối thu gọn, mở ra để xem lịch của bước trung gian. Kết quả cuối cùng luôn được hiển thị riêng ở phía trên; biểu đồ fitness vẫn có đủ mọi thế hệ đã ghi. Mỗi bước hiển thị badge `P/G/N` với số lớp đạt trên tổng số lớp, màu xanh nếu đạt toàn bộ và đỏ nếu còn vi phạm.
+- **Thời khóa biểu qua các bước**: lưới 10 cột, mỗi ô là một thế hệ với fitness (phần trăm), tổng số vi phạm và số vi phạm từng tiêu chí `P/G/N`; ô nền xanh là thế hệ không có vi phạm, ô có viền vàng là thế hệ fitness cao nhất. Bấm vào một ô (hoặc di chuyển bằng phím mũi tên) thì thời khóa biểu của thế hệ đó hiện ra ở khung ngay dưới lưới, gồm cả phần đầu ghi fitness, số vi phạm, thời gian và quy mô quần thể. Khung lưới giới hạn chiều cao (mặc định 430px, chỉnh bằng biến CSS `--step-grid-height`) và cuộn ngay trong khung nên trang không bị dài khi số thế hệ lớn.
 
 Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần kết quả (thời khóa biểu phòng và lịch giảng dạy của giảng viên). Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
 
@@ -337,7 +337,7 @@ Mỗi lớp học là một dòng, sắp xếp theo giảng viên rồi theo ng�
 | `MAX_COLUMN_WIDTH` | `30` | Độ rộng tối đa của một cột trong bảng console |
 | `MAX_HISTORY` | `5000` | Số thế hệ tối đa được lưu để xuất biểu đồ fitness và lịch sử bước ra HTML |
 
-Lịch sử cho HTML được lưu độc lập với việc in bảng ra console. Muốn giới hạn số bước có lịch chi tiết trong HTML, đổi `HtmlOutput.MAX_STEP_PANELS` (mặc định `60`).
+Lịch sử cho HTML được lưu độc lập với việc in bảng ra console. Mọi thế hệ được ghi (tối đa `MAX_HISTORY`) đều xuất hiện trong lưới các bước, mỗi thế hệ chiếm một ô; dữ liệu thời khóa biểu của từng thế hệ được nén thành một mảng JSON trong trang thay vì dựng sẵn toàn bộ bảng.
 
 Ví dụ muốn xem lịch thay đổi ở **từng** thế hệ:
 

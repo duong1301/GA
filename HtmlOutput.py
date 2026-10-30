@@ -1,4 +1,5 @@
 import html
+import json
 import math
 from collections import defaultdict
 from datetime import datetime
@@ -14,8 +15,6 @@ class HtmlOutput:
     ROOM_ROW_NUMBER = Constant.DAY_HOURS + 1
     COLOR1 = "#047857"
     COLOR2 = "#b91c1c"
-    # Số bước tối đa hiển thị thời khóa biểu chi tiết trong file HTML.
-    MAX_STEP_PANELS = 60
     # Ký hiệu viết tắt của 3 tiêu chí kiểm tra ràng buộc:
     #   P = Phòng học   G = Giảng viên   N = Nghỉ trưa
     CRITERIAS = ('P', 'G', 'N')
@@ -1295,50 +1294,164 @@ class HtmlOutput:
             margin-top: 28px;
         }
 
-        .step-list {
-            display: grid;
-            gap: 12px;
+        /* Lưới nhiều hàng nên cuộn bên trong khung, không đẩy trang dài. */
+        .step-grid-wrap {
+            max-height: var(--step-grid-height, 430px);
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
             margin-top: 16px;
+            padding: 2px 2px 6px;
+            border-radius: 14px;
+            background: var(--surface-soft);
+            border: 1px solid var(--border);
         }
 
-        .step {
+        .step-grid-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+
+        .step-grid-wrap::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border: 3px solid transparent;
+            border-radius: 999px;
+            background-clip: content-box;
+        }
+
+        .step-grid-wrap::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .step-grid-wrap::-webkit-scrollbar-track { background: transparent; }
+
+        /* Lưới các thế hệ: mỗi hàng 10 ô, mỗi ô là một thế hệ. */
+        .step-grid {
+            display: grid;
+            grid-template-columns: repeat(10, minmax(0, 1fr));
+            gap: 8px;
+            min-width: 840px;
+        }
+
+        .step-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            padding: 9px 9px 8px;
+            text-align: left;
+            font: inherit;
+            cursor: pointer;
+            background: var(--surface);
+            border: 1px solid rgba(226, 232, 240, .95);
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            transition: border-color .15s ease, box-shadow .15s ease,
+                        transform .15s ease, background .15s ease;
+        }
+
+        .step-cell:hover {
+            border-color: #bfdbfe;
+            transform: translateY(-1px);
+        }
+
+        .step-cell:focus-visible {
+            outline: 2px solid var(--brand);
+            outline-offset: 2px;
+        }
+
+        .cell-gen {
+            font-size: .64rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .cell-fit {
+            font-size: .98rem;
+            font-weight: 800;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+        }
+
+        .cell-fit.is-perfect { color: var(--ok); }
+
+        .cell-vio {
+            font-size: .7rem;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .cell-vio.has-violation { color: var(--bad); font-weight: 700; }
+
+        .cell-crits {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+
+        .cell-crit {
+            padding: 1px 4px;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            font-size: .62rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .cell-crit.ok {
+            color: var(--ok);
+            background: var(--ok-bg);
+            border-color: var(--ok-border);
+        }
+
+        .cell-crit.bad {
+            color: var(--bad);
+            background: var(--bad-bg);
+            border-color: var(--bad-border);
+        }
+
+        .step-cell.is-perfect {
+            background: linear-gradient(180deg, #fff, var(--ok-bg));
+            border-color: var(--ok-border);
+        }
+
+        .step-cell.is-best {
+            border-color: #fcd34d;
+            box-shadow: inset 0 0 0 1px #fcd34d, var(--shadow-sm);
+        }
+
+        .step-cell[aria-selected="true"] {
+            background: #eff6ff;
+            border-color: var(--brand);
+            box-shadow: 0 0 0 2px rgba(29, 78, 216, .2), var(--shadow-sm);
+            transform: translateY(-1px);
+        }
+
+        .step-cell.is-perfect[aria-selected="true"] {
+            background: linear-gradient(180deg, #eff6ff, var(--ok-bg));
+            border-color: var(--brand);
+        }
+
+        .step-panel {
             overflow: hidden;
+            margin-top: 14px;
             background: var(--surface);
             border: 1px solid rgba(226, 232, 240, .95);
             border-radius: 16px;
             box-shadow: var(--shadow-sm);
         }
 
-        .step > summary {
+        .step-panel[hidden] { display: none; }
+
+        .step-panel-head {
             display: flex;
             align-items: center;
             flex-wrap: wrap;
             gap: 8px 14px;
             padding: 14px 18px;
-            cursor: pointer;
-            list-style: none;
-        }
-
-        .step > summary::-webkit-details-marker { display: none; }
-        .step > summary::marker { content: ""; }
-        .step > summary:hover { background: #f8fbff; }
-
-        .step > summary::after {
-            content: "▾";
-            margin-left: 4px;
-            color: var(--muted);
-            font-size: .85rem;
-            transition: transform .15s ease;
-        }
-
-        .step[open] > summary {
             border-bottom: 1px solid var(--border);
             background: #f8fbff;
         }
 
-        .step[open] > summary::after { transform: rotate(180deg); }
-
-        .step-main {
+        .step-panel-title {
             display: flex;
             flex: 1 1 220px;
             flex-direction: column;
@@ -1346,63 +1459,51 @@ class HtmlOutput:
             line-height: 1.3;
         }
 
-        .step-title {
-            color: var(--text);
-            font-size: .9rem;
+        .step-panel-kicker {
+            font-size: .66rem;
             font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--brand);
         }
 
-        .step-meta {
-            margin-top: 1px;
-            color: var(--muted);
-            font-size: .73rem;
+        .step-panel-title h3 {
+            margin: 2px 0 0;
+            font-size: 1rem;
+            color: var(--text);
         }
 
-        .step-meter {
-            display: inline-block;
-            width: 82px;
-            height: 6px;
-            overflow: hidden;
-            border-radius: 999px;
-            background: #e2e8f0;
-        }
-
-        .step-meter span {
-            display: block;
-            height: 100%;
-            border-radius: inherit;
-            background: linear-gradient(90deg, #60a5fa, var(--brand));
-        }
-
-        .step-counts {
+        .step-panel-meta {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 5px;
-        }
-
-        .step-score {
-            color: var(--brand);
+            gap: 6px 12px;
+            color: var(--muted);
             font-size: .76rem;
-            font-weight: 700;
             font-variant-numeric: tabular-nums;
         }
 
-        .step-body { padding: 16px 18px 18px; }
+        .step-panel-fit { color: var(--brand); font-weight: 700; }
 
-        .step .rooms {
+        .step-panel-vio { color: var(--muted); }
+
+        .step-panel-vio.has-violation { color: var(--bad); font-weight: 700; }
+
+        .step-panel-body { padding: 16px 18px 18px; }
+
+        .step-panel .rooms {
             gap: 16px;
             margin-top: 0;
         }
 
-        .step .room {
+        .step-panel .room {
             border-radius: 16px;
             box-shadow: none;
         }
 
-        .step .room-head { padding: 14px 18px; }
+        .step-panel .room-head { padding: 14px 18px; }
 
-        .step .room-head h2 { font-size: 1.1rem; }
+        .step-panel .room-head h2 { font-size: 1.1rem; }
 
         .empty-state {
             margin-top: 26px;
@@ -1475,12 +1576,11 @@ class HtmlOutput:
             .chart-legend { padding: 0 16px 8px; }
             .fitness-chart-wrap { padding: 0 10px 2px; }
             .chart-stats { padding: 12px 16px 16px; }
-            .step > summary { padding: 13px 14px; gap: 8px 10px; }
-            .step-main { flex-basis: 100%; }
-            .step-counts { width: 100%; }
-            .step-body { padding: 12px; }
-            .step .rooms { gap: 12px; }
-            .step .room-head { padding: 12px 14px; }
+            .step-panel-head { padding: 13px 14px; gap: 8px 10px; }
+            .step-panel-meta { width: 100%; }
+            .step-panel-body { padding: 12px; }
+            .step-panel .rooms { gap: 12px; }
+            .step-panel .room-head { padding: 12px 14px; }
             .input-summary { padding: 16px 14px; }
             .input-summary h2,
             .settings-heading h2 { font-size: 1.08rem; }
@@ -1695,6 +1795,289 @@ class HtmlOutput:
                     select(next);
                 });
             });
+        })();
+        // Thời khóa biểu của từng thế hệ: bấm một ô trong lưới để xem ở dưới.
+        (() => {
+            const source = document.getElementById("step-data");
+            const grid = document.getElementById("step-grid");
+            const panel = document.getElementById("step-panel");
+            const panelBody = document.getElementById("step-panel-body");
+            if (!source || !grid || !panel || !panelBody) return;
+
+            let data;
+            try {
+                data = JSON.parse(source.textContent);
+            } catch (error) {
+                // Giữ nguyên thời khóa biểu đã dựng sẵn phía máy chủ.
+                return;
+            }
+
+            const letters = data.letters;
+            const cells = Array.from(grid.querySelectorAll(".step-cell"));
+
+            const esc = value => String(value).replace(
+                /[&<>"]/g,
+                character => ({
+                    "&": "&amp;",
+                    "<": "&lt;",
+                    ">": "&gt;",
+                    '"': "&quot;",
+                })[character]
+            );
+
+            const setText = (id, value) => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = value;
+            };
+
+            const columns = () => {
+                const value = getComputedStyle(grid).gridTemplateColumns;
+                const count = value ? value.split(" ").length : 0;
+                return count > 0 ? count : 10;
+            };
+
+            // Huy hiệu P/G/N của một lớp học ở thế hệ đang xem.
+            const criteriaBadges = (bits, offset) => {
+                let html = '<div class="crits">';
+                for (let i = 0; i < letters.length; i++) {
+                    const passed = bits.charAt(offset + i) === "1";
+                    const state = passed ? "Đạt" : "Vi phạm";
+                    const description = (passed ? data.ok : data.fail)[i];
+                    html += '<span class="crit ' + (passed ? "ok" : "bad") +
+                        '" title="' + esc(state + ": " + description) +
+                        '" aria-label="' +
+                        esc(letters[i] + " - " + state + ": " + description) +
+                        '">' + letters[i] + "</span>";
+                }
+                return html + "</div>";
+            };
+
+            const courseCard = (courseClass, bits, offset, continued) => {
+                let html = '<div class="course">' + esc(courseClass.course) +
+                    '</div><div class="prof">' + esc(courseClass.prof) + "</div>";
+                if (continued) {
+                    html += '<div class="tags">' +
+                        '<span class="tag tag-continued">Tiếp tiết</span></div>';
+                } else if (courseClass.dur > 1) {
+                    html += '<div class="tags"><span class="tag tag-duration">' +
+                        courseClass.dur + " tiết</span></div>";
+                }
+                return html + criteriaBadges(bits, offset);
+            };
+
+            // Sắp các lớp học vào ô (phòng, ngày, tiết) như phần dựng bảng.
+            const collectSlots = step => {
+                const slots = new Map();
+                step.s.forEach((slot, index) => {
+                    const courseClass = data.classes[index];
+                    if (!slot || !courseClass) return;
+                    const key = slot[0] + "|" + (slot[1] + 1);
+                    const startPeriod = slot[2] + 1;
+                    for (let offset = 0; offset < courseClass.dur; offset++) {
+                        const periodId = startPeriod + offset;
+                        if (periodId >= data.rows) break;
+                        const bucket = slots.get(key) || {};
+                        const list = bucket[periodId] || [];
+                        list.push({
+                            start: startPeriod,
+                            course: courseClass,
+                            bits: step.b,
+                            offset: index * letters.length,
+                        });
+                        bucket[periodId] = list;
+                        slots.set(key, bucket);
+                    }
+                });
+
+                const overlaps = new Set();
+                slots.forEach((bucket, key) => {
+                    for (const period in bucket) {
+                        if (bucket[period].length > 1) {
+                            overlaps.add(key);
+                            break;
+                        }
+                    }
+                });
+                return { slots, overlaps };
+            };
+
+            const roomTable = (roomId, slots, overlaps) => {
+                const roomName = data.rooms[roomId];
+                const covered = {};
+                let rows = "";
+
+                for (let periodId = 1; periodId < data.rows; periodId++) {
+                    let cellsHtml = "";
+                    for (let dayId = 1; dayId < data.cols; dayId++) {
+                        const dayCovered =
+                            covered[dayId] || (covered[dayId] = new Set());
+                        if (dayCovered.has(periodId)) continue;
+
+                        const bucket = slots.get(roomId + "|" + dayId) || {};
+                        const entries = bucket[periodId] || [];
+                        if (!entries.length) {
+                            cellsHtml += '<td class="slot empty"></td>';
+                            continue;
+                        }
+
+                        const hasOverlap = overlaps.has(roomId + "|" + dayId);
+                        if (!hasOverlap && entries.length === 1) {
+                            const entry = entries[0];
+                            if (entry.start === periodId) {
+                                const span = Math.min(
+                                    entry.course.dur,
+                                    data.rows - periodId
+                                );
+                                cellsHtml += '<td class="slot filled"' +
+                                    (span > 1 ? ' rowspan="' + span + '"' : "") +
+                                    '><div class="course-card">' +
+                                    courseCard(
+                                        entry.course, entry.bits, entry.offset, false
+                                    ) +
+                                    "</div></td>";
+                                for (let step = 1; step < span; step++) {
+                                    dayCovered.add(periodId + step);
+                                }
+                            } else {
+                                cellsHtml += '<td class="slot filled">' +
+                                    '<div class="course-card continued">' +
+                                    courseCard(
+                                        entry.course, entry.bits, entry.offset, true
+                                    ) +
+                                    "</div></td>";
+                            }
+                            continue;
+                        }
+
+                        let cards = "";
+                        if (entries.length > 1) {
+                            cards += '<div class="slot-warning">Trùng phòng</div>';
+                        }
+                        entries.forEach(entry => {
+                            const first = entry.start === periodId;
+                            cards += '<div class="course-card' +
+                                (first ? "" : " continued") + '">' +
+                                courseCard(
+                                    entry.course, entry.bits, entry.offset, !first
+                                ) +
+                                "</div>";
+                        });
+                        cellsHtml += '<td class="slot filled conflict">' +
+                            '<div class="slot-stack">' + cards + "</div></td>";
+                    }
+
+                    const period = data.periods[periodId - 1] || ["", ""];
+                    rows += "<tr" +
+                        (periodId - 1 === data.lunch ? ' class="lunch"' : "") +
+                        ">" +
+                        '<th class="period" scope="row">' +
+                        '<span class="period-name">' + esc(period[0]) + "</span>" +
+                        '<span class="period-time">' + esc(period[1]) + "</span></th>" +
+                        cellsHtml + "</tr>";
+                }
+
+                const dayHeaders = data.days.map(day =>
+                    '<th scope="col"><span class="day">' + esc(day[0]) + "</span>" +
+                    '<span class="day-name">' + esc(day[1]) + "</span></th>"
+                ).join("");
+
+                return (
+                    '<section class="room"><div class="room-head">' +
+                    '<div class="room-title"><span class="room-kicker">Phòng học</span>' +
+                    "<h2>" + esc(roomName) + "</h2></div></div>" +
+                    '<p class="scroll-hint">Vuốt ngang để xem đủ các ngày ' +
+                    '<span aria-hidden="true">→</span></p>' +
+                    '<div class="table-wrap"><table class="schedule">' +
+                    '<caption class="sr-only">Thời khóa biểu phòng ' +
+                    esc(roomName) + "</caption>" +
+                    "<thead><tr>" +
+                    '<th class="corner" scope="col">Tiết / Ngày</th>' +
+                    dayHeaders +
+                    "</tr></thead><tbody>" + rows + "</tbody></table>" +
+                    "</div></section>"
+                );
+            };
+
+            const updateHead = step => {
+                const percent = Math.max(0, Math.min(1, step.f)) * 100;
+                const violations = step.n.reduce(
+                    (sum, count) => sum + (step.total - count), 0
+                );
+
+                setText("step-panel-generation", "Thế hệ " + step.g);
+                setText("step-panel-fitness",
+                    "Fitness " + step.f.toFixed(6) + " · " + percent.toFixed(1) + "%");
+
+                const pills = document.getElementById("step-panel-pills");
+                if (pills) {
+                    pills.innerHTML = letters.map((letter, index) => {
+                        const count = step.n[index];
+                        const passed = count === step.total;
+                        return '<span class="count-pill ' +
+                            (passed ? "ok" : "bad") + '" title="' + letter + ": " +
+                            count + "/" + step.total + ' lớp đạt"><strong>' +
+                            letter + "</strong> " + count + "/" + step.total + "</span>";
+                    }).join("");
+                }
+
+                const violation = document.getElementById("step-panel-violations");
+                if (violation) {
+                    violation.textContent = violations + " vi phạm";
+                    violation.classList.toggle("has-violation", violations > 0);
+                }
+
+                setText("step-panel-elapsed", step.t.toFixed(1) + "s");
+                setText("step-panel-population",
+                    step.p + " cá thể · không cải thiện " + step.z);
+            };
+
+            const select = (index, focus) => {
+                const step = data.steps[index];
+                if (!step) return;
+
+                cells.forEach((cell, cellIndex) => {
+                    const active = cellIndex === index;
+                    cell.setAttribute("aria-selected", String(active));
+                    cell.tabIndex = active ? 0 : -1;
+                });
+                panel.setAttribute("aria-labelledby", cells[index].id);
+                updateHead(step);
+
+                const collected = collectSlots(step);
+                panelBody.innerHTML = '<div class="rooms">' +
+                    data.rooms.map((room, roomId) =>
+                        roomTable(roomId, collected.slots, collected.overlaps)
+                    ).join("") +
+                    "</div>";
+                panel.hidden = false;
+                if (focus) cells[index].focus();
+            };
+
+            cells.forEach((cell, index) => {
+                cell.addEventListener("click", () => select(index, false));
+            });
+
+            grid.addEventListener("keydown", event => {
+                const activeIndex = cells.findIndex(
+                    cell => cell.getAttribute("aria-selected") === "true"
+                );
+                let next = activeIndex < 0 ? 0 : activeIndex;
+
+                if (event.key === "Home") next = 0;
+                else if (event.key === "End") next = cells.length - 1;
+                else if (event.key === "ArrowLeft") next -= 1;
+                else if (event.key === "ArrowRight") next += 1;
+                else if (event.key === "ArrowUp") next -= columns();
+                else if (event.key === "ArrowDown") next += columns();
+                else return;
+
+                event.preventDefault();
+                next = Math.max(0, Math.min(cells.length - 1, next));
+                select(next, true);
+            });
+
+            // Mặc định chọn thế hệ cuối cùng (kết quả cuối).
+            select(cells.length - 1, false);
         })();
     </script>"""
 
@@ -2094,29 +2477,95 @@ class HtmlOutput:
         return tuple(int(count) for count in counts), total
 
     @staticmethod
-    def selectStepEntries(history, max_steps=None):
-        """Chọn các bước tiêu biểu để hiển thị lịch chi tiết.
+    def getStepsData(history):
+        """Dữ liệu gọn của từng thế hệ nhúng vào trang.
 
-        Kết quả cuối cùng đã được hiển thị riêng ở đầu trang nên bỏ bản ghi
-        cuối; các bản ghi còn lại được lấy đều nếu vượt quá max_steps.
+        Trình duyệt dùng mảng này để tự dựng thời khóa biểu của thế hệ được
+        bấm, nhờ đó file HTML chỉ nặng vài trăm KB thay vì hàng chục MB.
         """
-        if not history or len(history) <= 1:
-            return []
+        if not history:
+            return ""
 
-        if max_steps is None:
-            max_steps = HtmlOutput.MAX_STEP_PANELS
-        max_steps = max(1, int(max_steps))
-        candidates = list(history[:-1])
-        if len(candidates) <= max_steps:
-            return candidates
-        if max_steps == 1:
-            return [candidates[-1]]
+        # Thứ tự lớp học lấy theo bản ghi đầu tiên; các bản ghi sau được
+        # dời về đúng vị trí này (tiêu chí lại được lưu theo thứ tự của nó).
+        order = list((history[0].get("classes") or {}).keys())
+        position = {course_class: index
+                    for index, course_class in enumerate(order)}
+        classes = [
+            {
+                "course": course_class.Course.Name,
+                "prof": course_class.Professor.Name,
+                "dur": int(course_class.Duration),
+            }
+            for course_class in order
+        ]
 
-        indexes = sorted({
-            int(round(i * (len(candidates) - 1) / (max_steps - 1)))
-            for i in range(max_steps)
-        })
-        return [candidates[i] for i in indexes]
+        configuration = history[0].get("configuration")
+        rooms = []
+        if configuration is not None:
+            for room_id in range(configuration.numberOfRooms):
+                room = configuration.getRoomById(room_id)
+                rooms.append(room.Name if room is not None else "Phòng {}".format(room_id))
+
+        step_size = len(HtmlOutput.CRITERIAS)
+        steps = []
+        for entry in history:
+            counts, total = HtmlOutput._criteriaCounts(entry)
+            entry_classes = entry.get("classes") or {}
+            criteria = entry.get("criteria")
+
+            flags = ["0" * step_size for _ in order]
+            for index, course_class in enumerate(entry_classes):
+                target = position.get(course_class)
+                if target is None or criteria is None:
+                    continue
+                flags[target] = "".join(
+                    "1" if criteria[index * step_size + offset] else "0"
+                    for offset in range(step_size)
+                    if index * step_size + offset < len(criteria)
+                )
+
+            slots = [None] * len(order)
+            for course_class, reservation_index in entry_classes.items():
+                target = position.get(course_class)
+                if target is None:
+                    continue
+                reservation = Reservation.parse(reservation_index)
+                slots[target] = [int(reservation.Room),
+                                 int(reservation.Day),
+                                 int(reservation.Time)]
+
+            steps.append({
+                "g": int(entry.get("generation", len(steps) + 1)),
+                "f": float(entry.get("fitness", 0.0)),
+                "t": round(float(entry.get("elapsed", 0.0) or 0.0), 2),
+                "n": [int(count) for count in counts],
+                "total": int(total),
+                "p": int(entry.get("populationSize", 0) or 0),
+                "z": int(entry.get("bestNotEnhance", 0) or 0),
+                "b": "".join(flags),
+                "s": slots,
+            })
+
+        payload = {
+            "letters": list(HtmlOutput.CRITERIAS),
+            "ok": list(HtmlOutput.OK_DESCR),
+            "fail": list(HtmlOutput.FAIL_DESCR),
+            "days": [list(day) for day in
+                     zip(HtmlOutput.WEEK_DAYS, HtmlOutput.WEEK_DAY_NAMES)],
+            "periods": [[HtmlOutput.PERIODS[index], HtmlOutput.PERIOD_TIMES[index]]
+                        for index in range(1, HtmlOutput.ROOM_ROW_NUMBER)],
+            "lunch": Constant.LUNCH_PERIOD,
+            "rows": HtmlOutput.ROOM_ROW_NUMBER,
+            "cols": HtmlOutput.ROOM_COLUMN_NUMBER,
+            "rooms": rooms,
+            "classes": classes,
+            "steps": steps,
+        }
+        document = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+        return ('<script type="application/json" id="step-data">'
+                + document.replace("</", "<\\/")
+                + "</script>\n")
 
     @staticmethod
     def getFitnessChart(history):
@@ -2334,73 +2783,187 @@ class HtmlOutput:
         )
 
     @staticmethod
+    def getStepViolations(entry):
+        """Trả về (số vi phạm từng tiêu chí, tổng số vi phạm, tổng số lớp)."""
+        counts, total = HtmlOutput._criteriaCounts(entry)
+        violations = [total - count for count in counts]
+        return violations, sum(violations), total
+
+    @staticmethod
+    def getStepHeadHtml(entry, index):
+        """Phần đầu của khung hiển thị: thông số của thế hệ được chọn."""
+        counts, total = HtmlOutput._criteriaCounts(entry)
+        violations = [total - count for count in counts]
+        violation_total = sum(violations)
+        fitness = float(entry.get("fitness", 0.0))
+        percent = max(0.0, min(1.0, fitness)) * 100
+        generation = entry.get("generation", index + 1)
+        elapsed = float(entry.get("elapsed", 0.0) or 0.0)
+        population = int(entry.get("populationSize", 0) or 0)
+        stagnation = int(entry.get("bestNotEnhance", 0) or 0)
+
+        pills = "".join(
+            '<span class="count-pill {state}" title="{letter}: {count}/{total} lớp đạt">'
+            "<strong>{letter}</strong> {count}/{total}</span>".format(
+                state="ok" if count == total else "bad",
+                letter=letter, count=count, total=total,
+            )
+            for letter, count in zip(HtmlOutput.CRITERIAS, counts)
+        )
+
+        return (
+            '<div class="step-panel-head">'
+            '<div class="step-panel-title">'
+            '<span class="step-panel-kicker">Thời khóa biểu của thế hệ</span>'
+            '<h3 id="step-panel-generation">Thế hệ {generation}</h3>'
+            "</div>"
+            '<div class="step-panel-meta">'
+            '<span class="step-panel-fit" id="step-panel-fitness">'
+            "Fitness {fitness:.6f} · {percent:.1f}%</span>"
+            '<span class="step-panel-pills" id="step-panel-pills">{pills}</span>'
+            '<span class="step-panel-vio{vio_class}" id="step-panel-violations">'
+            "{violation_total} vi phạm</span>"
+            '<span id="step-panel-elapsed">{elapsed:.1f}s</span>'
+            '<span id="step-panel-population">{population} cá thể · '
+            "không cải thiện {stagnation}</span>"
+            "</div>"
+            "</div>"
+        ).format(
+            generation=generation,
+            fitness=fitness,
+            percent=percent,
+            pills=pills,
+            violation_total=violation_total,
+            vio_class=" has-violation" if violation_total else "",
+            elapsed=elapsed,
+            population=population,
+            stagnation=stagnation,
+        )
+
+    @staticmethod
     def getStepsSection(history):
-        """Tạo các khối thu gọn chứa thời khóa biểu của các bước trung gian."""
-        steps = HtmlOutput.selectStepEntries(history)
-        if not steps:
+        """Lưới các thế hệ: mỗi ô chứa fitness và số vi phạm, bấm để xem lịch."""
+        if not history:
             return ""
 
-        panels = []
-        for index, entry in enumerate(steps):
-            snapshot = HtmlOutput._snapshotSolution(entry)
-            rooms = HtmlOutput.getRoomSections(snapshot)
-            counts, total = HtmlOutput._criteriaCounts(entry)
+        best_index = max(
+            range(len(history)),
+            key=lambda index: float(history[index].get("fitness", 0.0)),
+        )
+
+        cells = []
+        for index, entry in enumerate(history):
+            violations, violation_total, total = HtmlOutput.getStepViolations(entry)
             fitness = float(entry.get("fitness", 0.0))
             percent = max(0.0, min(1.0, fitness)) * 100
-            counts_html = "".join(
-                '<span class="count-pill {}" title="{}: {}/{} lớp đạt">'
-                '<strong>{}</strong> {}/{}</span>'.format(
-                    "ok" if count == total else "bad",
-                    letter, count, total, letter, count, total,
-                )
-                for letter, count in zip(HtmlOutput.CRITERIAS, counts)
-            )
-            open_attr = " open" if index == len(steps) - 1 else ""
             generation = entry.get("generation", index + 1)
             elapsed = float(entry.get("elapsed", 0.0) or 0.0)
+            population = int(entry.get("populationSize", 0) or 0)
+            stagnation = int(entry.get("bestNotEnhance", 0) or 0)
 
-            panels.append(
-                f'<details class="step" id="step-{generation}"{open_attr}>'
-                '<summary>'
-                '<span class="step-main">'
-                f'<span class="step-title">Thế hệ {generation}</span>'
-                f'<span class="step-meta">Fitness {fitness:.4f} · {elapsed:.1f}s</span>'
-                '</span>'
-                f'<span class="step-meter" aria-hidden="true">'
-                f'<span style="width:{percent:.1f}%"></span></span>'
-                f'<span class="step-counts" aria-label="Số lớp đạt các tiêu chí '
-                f"{', '.join(HtmlOutput.CRITERIAS)}\">{counts_html}</span>"
-                f'<span class="step-score">{percent:.1f}%</span>'
-                '</summary>'
-                '<div class="step-body">'
-                f'<div class="rooms">{rooms}</div>'
-                '</div>'
-                '</details>'
+            perfect = " is-perfect" if violation_total == 0 else ""
+            best = " is-best" if index == best_index else ""
+            selected = index == len(history) - 1
+
+            crit_html = "".join(
+                '<span class="cell-crit {state}">{letter}{violation}</span>'.format(
+                    state="ok" if violation == 0 else "bad",
+                    letter=letter, violation=violation,
+                )
+                for letter, violation in zip(HtmlOutput.CRITERIAS, violations)
+            )
+            title = (
+                "Thế hệ {generation} · Fitness {fitness:.6f} ({percent:.1f}%) · "
+                "Vi phạm: {detail} (tổng {total_violations}) · "
+                "Đạt {achieved} · "
+                "{elapsed:.1f}s · {population} cá thể · "
+                "không cải thiện {stagnation}"
+            ).format(
+                generation=generation,
+                fitness=fitness,
+                percent=percent,
+                detail=", ".join(
+                    "{} {}".format(letter, violation)
+                    for letter, violation in zip(HtmlOutput.CRITERIAS, violations)
+                ),
+                total_violations=violation_total,
+                achieved=" · ".join(
+                    "{} {}/{}".format(letter, total - violation, total)
+                    for letter, violation in zip(HtmlOutput.CRITERIAS, violations)
+                ),
+                elapsed=elapsed,
+                population=population,
+                stagnation=stagnation,
             )
 
-        intermediate_count = max(0, len(history) - 1)
-        if intermediate_count > len(steps):
-            note = (
-                f"Hiển thị {len(steps)}/{intermediate_count} bước tiêu biểu; "
-                f"biểu đồ fitness phía trên có đủ {len(history)} thế hệ."
-            )
-        else:
-            note = (
-                f"Hiển thị {len(steps)} bước trung gian; "
-                "kết quả cuối cùng ở phía trên."
-            )
+            cells.append((
+                '<button class="step-cell{perfect}{best}" type="button" '
+                'role="tab" id="step-tab-{index}" aria-controls="step-panel" '
+                'aria-selected="{selected}" tabindex="{tabindex}" '
+                'data-step="{index}" title="{title}">'
+                '<span class="cell-gen">Thế hệ {generation}</span>'
+                '<span class="cell-fit{fit_class}">{percent:.1f}%</span>'
+                '<span class="cell-vio{vio_class}">Vi phạm {total_violations}</span>'
+                '<span class="cell-crits">{crit_html}</span>'
+                "</button>"
+            ).format(
+                perfect=perfect,
+                best=best,
+                index=index,
+                selected="true" if selected else "false",
+                tabindex="0" if selected else "-1",
+                title=html.escape(title, quote=True),
+                generation=generation,
+                fit_class=" is-perfect" if violation_total == 0 else "",
+                percent=percent,
+                vio_class=" has-violation" if violation_total else "",
+                total_violations=violation_total,
+                crit_html=crit_html,
+            ))
 
+        # Khung hiển thị khởi tạo sẵn bằng thế hệ cuối cùng để trang vẫn
+        # có lịch khi JavaScript không chạy.
+        last_index = len(history) - 1
+        snapshot = HtmlOutput._snapshotSolution(history[last_index])
+        rooms = HtmlOutput.getRoomSections(snapshot)
+        head = HtmlOutput.getStepHeadHtml(history[last_index], last_index)
+
+        note = ("Bấm một ô để xem thời khóa biểu của thế hệ đó; "
+                "ô nền xanh là thế hệ không có vi phạm, viền vàng là thế hệ "
+                "tốt nhất. Di chuyển bằng phím mũi tên.")
+
+        panel = (
+            '<div class="step-panel" id="step-panel" role="tabpanel" '
+            'aria-labelledby="step-tab-{last_index}">'
+            "{head}"
+            '<div class="step-panel-body" id="step-panel-body">'
+            '<div class="rooms">{rooms}</div>'
+            "</div>"
+            "</div>"
+        ).format(last_index=last_index, head=head, rooms=rooms)
+
+        # Các chuỗi dựng sẵn ở trên chỉ được nối với chuỗi runtime qua "+",
+        # nhờ đó không một giá trị người dùng nào lọt vào dấu ngoặc nhọn {}.
         return (
             '<section class="steps-section" aria-labelledby="steps-title">'
             '<div class="section-head">'
             '<div>'
             '<p class="section-kicker">Diễn biến</p>'
             '<h2 id="steps-title">Thời khóa biểu qua các bước</h2>'
-            '</div>'
-            f'<p class="section-note">{note}</p>'
-            '</div>'
-            f'<div class="step-list">{"".join(panels)}</div>'
-            '</section>'
+            "</div>"
+            f'<p class="section-note">{len(history)} thế hệ · '
+            "10 ô mỗi hàng · cuộn trong khung để xem đủ · "
+            "bấm ô để xem lịch</p>"
+            "</div>"
+            '<p class="tab-note">' + note + "</p>"
+            '<div class="step-grid-wrap">'
+            '<div class="step-grid" id="step-grid" role="tablist" '
+            'aria-label="Các thế hệ của thuật toán">'
+            + "".join(cells) +
+            "</div>"
+            "</div>"
+            + panel +
+            "</section>"
         )
 
     @staticmethod
@@ -2682,6 +3245,7 @@ class HtmlOutput:
         input_html = HtmlOutput.getInputSection(solution)
         history_html = HtmlOutput.getHistorySection(history)
         steps_html = HtmlOutput.getStepsSection(history)
+        steps_data = HtmlOutput.getStepsData(history)
 
         return (
             '<!DOCTYPE html>\n'
@@ -2763,6 +3327,7 @@ class HtmlOutput:
             f'<span>Cập nhật lúc {generated_at}</span>\n'
             '</footer>\n'
             '</main>\n'
+            f'{steps_data}\n'
             f'{HtmlOutput.PAGE_SCRIPT}\n'
             '</body>\n'
             '</html>\n'
