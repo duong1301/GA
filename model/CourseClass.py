@@ -3,22 +3,14 @@ class CourseClass:
     _next_class_id = 0
 
     # Khởi tạo đối tượng lớp học phần
-    def __init__(self, professor, course, duration):
+    # Giảng viên KHÔNG còn thuộc lớp học phần: do nhiễm sắc thể (GA) gán khi xếp lịch.
+    def __init__(self, course, duration):
         self.Id = CourseClass._next_class_id
         CourseClass._next_class_id += 1
-        # Trả về con trỏ tới giảng viên giảng lớp này
-        self.Professor = professor
         # Trả về con trỏ tới môn học mà lớp học phần này thuộc về
         self.Course = course
         # Trả về thời lượng của lớp học phần tính bằng giờ
         self.Duration = duration
-
-        # liên kết giảng viên với lớp học phần
-        self.Professor.addCourseClass(self)
-
-    # Trả về TRUE nếu hai lớp học phần có cùng giảng viên.
-    def professorOverlaps(self, c):
-        return self.Professor == c.Professor
 
     def __hash__(self):
         return hash(self.Id)

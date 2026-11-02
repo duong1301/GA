@@ -21,7 +21,10 @@ Khi lập thời khóa biểu, bạn phải tính đến nhiều yêu cầu: s�
 2. Phòng học giảng viên muốn dùng.
 3. Mức độ phân bố (theo thời gian hoặc không gian) của các lớp học dành cho giảng viên.
 
-Rõ ràng, ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình huống cụ thể. Trong ví dụ này, chỉ các ràng buộc cứng được cài đặt. Hãy bắt đầu bằng việc giải thích các đối tượng tạo nên một thời khóa biểu.
+Rõ ràng, ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình huống cụ thể. Trong bản hiện
+tại cả hai nhóm đều được cài đặt, nhưng ràng buộc mềm luôn có trọng số phạt **nhỏ hơn**
+ràng buộc cứng — xem mục "Trọng số tiêu chí". Hãy bắt đầu bằng việc giải thích các đối
+tượng tạo nên một thời khóa biểu.
 
 # Các đối tượng của thời khóa biểu
 
@@ -42,13 +45,22 @@ Việc đầu tiên cần cân nhắc khi làm việc với thuật toán di tru
 
 ## Cách biểu diễn
 
-Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi khung giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Một ngày có 11 khung giờ từ 7 giờ đến 18 giờ, chia làm hai buổi: buổi sáng 5 tiết (7h–12h) và buổi chiều 5 tiết (13h–18h); khung 12h–13h là giờ nghỉ trưa, không được xếp lịch (tổng cộng 10 tiết dạy mỗi ngày). Ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày). Các tham số này được cấu hình trong `model/Constant.py` qua `START_HOUR`, `DAY_HOURS` (11 khung giờ), `LUNCH_PERIOD` (chỉ số khung nghỉ trưa) và `TEACHING_HOURS` (10 tiết dạy).
+Làm thế nào để biểu diễn nhiễm sắc thể cho một thời khóa biểu? Ta cần một ô thời gian - không gian (time-space slot) cho mỗi khung giờ (ta giả thiết thời gian tính theo đơn vị một giờ), cho mỗi phòng học, mỗi ngày. Một ngày có 13 khung giờ từ 7 giờ đến 18 giờ, chia làm hai buổi: buổi sáng 6 tiết (7h–12h) và buổi chiều 6 tiết (13h–18h), mỗi tiết 50 phút; khung 12h–13h là giờ nghỉ trưa, không được xếp lịch (tổng cộng 12 tiết dạy mỗi ngày). Ngày làm việc từ thứ hai đến thứ sáu (tổng cộng 5 ngày). Các tham số này được cấu hình trong `model/Constant.py` qua `START_HOUR`, `DAY_HOURS` (13 khung giờ), `LUNCH_PERIOD` (chỉ số 6 của khung nghỉ trưa) và `TEACHING_HOURS` (12 tiết dạy).
+
+Mỗi khung giờ có hai cách gọi cần phân biệt khi đọc mã nguồn:
+
+- **offset** (chỉ số 0-based của khung giờ trong ngày, 0..12, bỏ qua offset 6 là nghỉ trưa) — đây là giá trị lưu trong `Reservation.Time`, trong tập `BusySlots`, và trong các trường `start`/`end` của khối `busy` ở tệp JSON;
+- **số tiết** (1..12, do `Constant.periodNumber(offset)` sinh ra) — sáng: offset 0..5 thành tiết 1..6, chiều: offset 7..12 thành tiết 7..12.
+
+Báo cáo HTML và lưới chọn giờ bận luôn hiển thị theo **số tiết**, không phải offset.
 
 Kết quả sẽ được hiển thị dưới dạng bảng HTML. Chương trình sẽ mở trình duyệt mặc định để trình bày thời khóa biểu một cách rõ ràng.
 
 # Độ thích nghi
 
-Bây giờ cần gán một giá trị độ thích nghi cho nhiễm sắc thể. Như đã nói ở trên, chỉ có các ràng buộc cứng được dùng để tính độ thích nghi. Cách tính như sau:
+Bây giờ cần gán một giá trị độ thích nghi cho nhiễm sắc thể. Điểm của một lớp dựa trên
+ba ràng buộc cứng, sau đó cả lịch bị trừ thêm phạt của các ràng buộc mềm (nhẹ hơn hẳn
+ràng buộc cứng). Cách tính phần cứng như sau:
 
 - Mỗi lớp học có thể nhận từ 0 đến 3 điểm, ứng với các tiêu chí `P`, `G`, `N`.
 - Nếu lớp học nằm trong phòng còn trống, tăng điểm của lớp đó.
@@ -125,15 +137,41 @@ Tệp `GaSchedule.json` đi kèm chứa: 10 giảng viên, 8 môn học, 3 phòn
 
 ## Trọng số tiêu chí
 
-Ba tiêu chí được lưu trong `model/Criteria.py`. Trọng số là **mức phạt** khi lớp học vi phạm:
+Tất cả trọng số nằm trong `model/Criteria.py`. **Ràng buộc cứng** tính theo từng lớp,
+mỗi tiêu chí tối đa 1 điểm (P, G, N); trọng số là mức phạt khi vi phạm.
 
-| Mã | Tiêu chí | Trọng số phạt |
+| Mã | Tiêu chí (cứng) | Trọng số phạt |
 |---|---|---|
 | `P` | Phòng học không bị trùng lịch | 1.0 |
 | `G` | Giảng viên không bị trùng lịch | 1.0 |
 | `N` | Không xếp lịch vào khung nghỉ trưa 12h–13h | 1.0 |
 
-Khi một lớp vi phạm tiêu chí, điểm của tiêu chí đó là `1 - trọng số`. Vì vậy `P`, `G` và `N` là các tiêu chí nghiêm: vi phạm sẽ mất trọn 1 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
+Khi một lớp vi phạm tiêu chí cứng, điểm của tiêu chí đó là `1 - trọng số`, tức mất trọn
+1 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
+
+**Ràng buộc mềm** chỉ làm giảm điểm của nhiễm vụ khả thi và **luôn có trọng số nhỏ hơn
+một vi phạm cứng**, để thuật toán bao giờ cũng ưu tiên sửa P/G/N trước:
+
+| Mã | Tiêu chí (mềm) | Cách tính | Trọng số phạt |
+|---|---|---|---|
+| `B` | Không xếp lớp vào khung giờ giảng viên bận | theo từng lớp dính bận | 0.2 |
+| `A` | Lịch dạy phù hợp giờ rảnh của giảng viên | toàn cục, tối đa khi 100% tiết rơi vào giờ bận | 0.4 |
+
+Fitness = `(điểm cứng − tổng phạt mềm) / (số lớp × 3)`. Vì mỗi phạt mềm đều dưới 1.0,
+một vi phạm mềm không bao giờ đắt bằng một vi phạm cứng.
+
+Trên báo cáo HTML, ô lớp bị xếp vào khung giảng viên bận tô **cam** kèm nhãn
+`GV bận · tiết 3-4, 7` (ràng buộc mềm); rê chuột vào nhãn để thấy khung giờ tương
+ứng (VD `9:50–11:40, 13:00–13:50`). Ô trống có sọc cam trong lịch của một giảng viên
+là dải tiết giảng viên đó báo bận; các tiết bận liền kề **gộp thành một ô duy nhất**
+có nhãn `tiết 5-6` để đọc như một khối liền mạch, thay vì mỗi tiết một ô rời rạc.
+Một lớp cũng chỉ bị cắt ô ở chỗ chuyển từ tiết rảnh sang tiết bận, nên lớp nằm trọn
+trong dải bận hiển thị một nhãn `GV bận · tiết 8-11`. Phân biệt với **đỏ** của ràng
+buộc cứng; mỗi giảng viên có badge số lớp dính bận ở đầu bảng lịch.
+
+Số tiết bận lấy từ `BusySlots` (tập hợp `(ngày, chỉ số khung giờ)` đã được
+`Configuration` bung từ các khối `busy` trong tệp JSON), nên cột **Lịch bận** và lưới
+chọn giờ bận dùng chung một cách đếm tiết với các dòng của bảng thời khóa biểu.
 
 # Hiệu năng
 
@@ -160,7 +198,21 @@ Khi chạy ở chế độ mặc định, nút **↻ Chạy lại** nằm ở ph
 
 - chạy lại thuật toán với đúng tệp cấu hình đang dùng;
 - đọc lại tệp JSON nếu bạn vừa sửa dữ liệu;
+- lưu lịch bận đã chọn trên lưới giờ bận của giảng viên trở lại tệp cấu hình;
 - cập nhật cả trang đang mở và tệp `.htm` trong thư mục tạm.
+
+Quy tắc liên kết (binding) của lưới chọn giờ bận, để dữ liệu trên trang và dữ liệu
+trong tệp luôn là một:
+
+- mỗi ô của lưới mang `data-prof` (ID giảng viên), `data-day` và `data-time` là
+  **chỉ số khung giờ 0-based** — cùng hệ toạ độ với `Reservation.Time` và `BusySlots`;
+- khi bấm **Chạy lại**, trang gửi nguyên trạng thái lưới: mọi giảng viên đều có mặt
+  trong payload, giảng viên đã bỏ hết ô bận gửi danh sách rỗng `[]`;
+- máy chủ chỉ ghi tệp khi yêu cầu có khoá `busy`. Danh sách rỗng xoá sạch khung bận
+  của giảng viên đó; giảng viên vắng mặt trong payload được giữ nguyên dữ liệu cũ;
+- lịch bận của từng thế hệ trên lưới **Thời khóa biểu qua các bước** tra theo **ID**
+  giảng viên (`data.busy` và `data.profNames` trong mảng JSON nhúng), không tra theo
+  tên hiển thị, nên hai giảng viên trùng tên không dính khung bận của nhau.
 
 Cần giữ cửa sổ dòng lệnh mở trong lúc dùng nút; nhấn `Ctrl+C` để dừng máy chủ. Nếu chạy với `--no-serve` hoặc mở trực tiếp tệp `.htm`, nút sẽ nhắc chạy `ConsoleApp.py` để bật máy chủ cục bộ.
 

@@ -1,14 +1,30 @@
 # Lưu trữ dữ liệu về giảng viên
 class Professor:
     # Khởi tạo dữ liệu giảng viên
-    def __init__(self, id, name):
+    # subjects: tập ID các môn giảng viên có khả năng giảng dạy (phụ trách)
+    # busy: tập (ngày, chỉ số khung giờ 0-based) mà giảng viên bận trong tuần;
+    #       chỉ số này KHÔNG phải số tiết hiển thị (buổi chiều lệch nhau 1)
+    #       và là nguồn duy nhất về lịch bận — các khối {day, start, end} trong
+    #       tệp cấu hình được bung ra đây ngay khi đọc tệp.
+    def __init__(self, id, name, subjects=None, busy=None):
         self.Id = id
         self.Name = name
-        self.CourseClasses = []
+        # Các môn có khả năng giảng dạy (phụ trách), lưu ID môn học
+        self.Subjects = set(subjects) if subjects else set()
+        # Các ô (ngày, khung giờ) bận cố định trong tuần, dạng tập (day, time)
+        self.BusySlots = set(busy) if busy else set()
 
-    # Liên kết giảng viên với lớp học phần
-    def addCourseClass(self, courseClass):
-        self.CourseClasses.append(courseClass)
+    # Kiểm tra giảng viên có khả năng giảng dạy môn học với ID được cho không
+    def canTeach(self, courseId):
+        return courseId in self.Subjects
+
+    # Kiểm tra ô (ngày, tiết) có nằm trong khung bận của giảng viên không
+    def isBusyAt(self, day, time):
+        return (day, time) in self.BusySlots
+
+    # Kiểm tra ô (ngày, tiết) có nằm trong giờ giảng viên RẢI (không bận) không
+    def isAvailableAt(self, day, time):
+        return (day, time) not in self.BusySlots
 
     def __hash__(self):
         return hash(self.Id)

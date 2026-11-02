@@ -17,6 +17,7 @@ import time
 
 from model.Reservation import Reservation
 from model.Constant import Constant
+from model.Criteria import Criteria
 
 # In bảng thời khóa biểu mỗi N thế hệ (None = không in)
 SCHEDULE_EVERY_GENERATION = 10
@@ -142,13 +143,14 @@ def _kv_table(pairs, keyWidth=34):
 
 class Trace:
     WEEK_DAYS = ("T2", "T3", "T4", "T5", "T6")
+    # Tiết dài 50 phút, các tiết trong cùng buổi liền nhau (không nghỉ 10 phút).
+    # Đánh số Tiết 1..6 (sáng), 7..12 (chiều); khung nghỉ trưa không chiếm số.
     PERIODS = tuple(
-        "Nghỉ trưa    {:<2}-{}".format(
-            Constant.START_HOUR + period - 1, Constant.START_HOUR + period)
-        if period - 1 == Constant.LUNCH_PERIOD
-        else f"Tiết {period:<2} {Constant.START_HOUR + period - 1}-"
-             f"{Constant.START_HOUR + period}"
-        for period in range(1, Constant.DAY_HOURS + 1)
+        "Nghỉ trưa    {}".format(Constant.lunchRange(sep="-"))
+        if offset == Constant.LUNCH_PERIOD
+        else "Tiết {:<2} {}".format(
+            Constant.periodNumber(offset), Constant.periodTimeRange(offset, sep="-"))
+        for offset in range(Constant.DAY_HOURS)
     )
     CRITERIA_NAMES = ("P", "G", "N")
     CRITERIA_MEAN = ("Phòng", "GV", "Nghỉ trưa")
@@ -190,6 +192,7 @@ class Trace:
             "fitness": float(solution.fitness),
             "criteria": criteria.copy(),
             "classes": dict(solution.classes),
+            "professors": dict(getattr(solution, "professors", {}) or {}),
             "configuration": solution.configuration,
             "counts": counts,
             "total": total,
@@ -228,8 +231,16 @@ class Trace:
         t = Table(["Mã", "Họ tên giảng viên", "Môn học phụ trách"],
                   ["r", "l", "l"])
         for prof in configuration._professors.values():
-            courses = sorted({cc.Course.Name for cc in prof.CourseClasses})
-            t.add([prof.Id, prof.Name, ", ".join(courses) if courses else "(chưa có lớp)"])
+            # hiển thị năng lực giảng dạy (các môn phụ trách) từ danh sách subjects
+            courses = sorted(
+                {
+                    configuration.getCourseById(cid).Name
+                    for cid in prof.Subjects
+                    if configuration.getCourseById(cid) is not None
+                },
+                key=str.casefold,
+            )
+            t.add([prof.Id, prof.Name, ", ".join(courses) if courses else "(chưa có)"])
         t.show("GIẢNG VIÊN")
 
     @staticmethod
@@ -259,10 +270,11 @@ class Trace:
 
     @staticmethod
     def _classes(configuration):
-        t = Table(["Mã", "Môn học", "Giảng viên", "Thời lượng"],
-                  ["r", "l", "l", "c"])
+        t = Table(["Mã", "Môn học", "Thời lượng"],
+                  ["r", "l", "c"])
         for index, cc in enumerate(configuration.courseClasses):
-            t.add([index, cc.Course.Name, cc.Professor.Name,
+            # giảng viên không còn cài sẵn: GA tự gán khi xếp lịch
+            t.add([index, cc.Course.Name,
                    "{} tiết".format(cc.Duration)])
         t.show("LỚP HỌC")
 
@@ -347,6 +359,51 @@ class Trace:
                    Table.CHECK if ok == total else Table.CROSS])
         t.show()
 
+        # Bảng RÀNG BUỘC MỀM (ký hiệu B/A) tối ưu lịch giảng dạy.
+        Trace.softCriteria(best)
+
+    @staticmethod
+    def softCriteria(solution):
+        """In bảng tóm tắt các ràng buộc mềm kèm ký hiệu B/A và trọng số."""
+        classes = getattr(solution, "classes", None) or {}
+        professors = getattr(solution, "professors", None) or {}
+
+        busy_violations = 0
+        available_periods = 0
+        total_periods = 0
+
+        for cc, reservation_index in classes.items():
+            prof = professors.get(cc)
+            if prof is None:
+                continue
+            reservation = Reservation.parse(reservation_index)
+            day, time, dur = reservation.Day, reservation.Time, cc.Duration
+
+            in_busy = False
+            for off in range(dur):
+                total_periods += 1
+                if prof.isBusyAt(day, time + off):
+                    in_busy = True
+                else:
+                    available_periods += 1
+            if in_busy:
+                busy_violations += 1
+
+        fit = (available_periods / total_periods) if total_periods else 1.0
+
+        rows = [
+            ("B", "Tránh khung giờ bận của GV",
+             "{} lớp dính bận".format(busy_violations), Criteria.busyPenalty),
+            ("A", "Phù hợp lịch khả dụng (giờ rảnh)",
+             "{:.1%} giờ rảnh".format(fit), Criteria.availabilityWeight),
+        ]
+
+        t = Table(["Mã", "Ràng buộc mềm", "Giá trị", "Phạt"], ["c", "l", "r", "r"])
+        t.indent = "    "
+        for code, label, value, weight in rows:
+            t.add([code, label, value, "×{:g}".format(weight)])
+        t.show()
+
     @staticmethod
     def detail(solution, generation: int):
         """In chi tiết từng lớp học của cá thể tốt nhất kèm cờ từng tiêu chí."""
@@ -359,10 +416,13 @@ class Trace:
                   maxWidth=22)
 
         criteria = solution.criteria
+        professors_map = getattr(solution, "professors", {}) or {}
         for index, (cc, reservation_index) in enumerate(solution.classes.items()):
             res = Reservation.parse(reservation_index)
             room = configuration.getRoomById(res.Room)
-            row = [index, cc.Course.Name, cc.Professor.Name,
+            professor = professors_map.get(cc)
+            professor_name = professor.Name if professor is not None else "—"
+            row = [index, cc.Course.Name, professor_name,
                    Trace.WEEK_DAYS[res.Day],
                    "{} ({}h)".format(res.Time + 1, cc.Duration),
                    room.Name if room else res.Room]
@@ -384,9 +444,12 @@ class Trace:
 
         # cover[(phòng, ngày, tiết)] = (nhãn, có_phải_tiết_đầu, thời_lượng)
         cover = {}
+        professors_map = getattr(solution, "professors", {}) or {}
         for cc, reservation_index in solution.classes.items():
             res = Reservation.parse(reservation_index)
-            label = "{} · {}".format(cc.Course.Name, cc.Professor.Name)
+            professor = professors_map.get(cc)
+            professor_name = professor.Name if professor is not None else "—"
+            label = "{} · {}".format(cc.Course.Name, professor_name)
             for offset in range(cc.Duration):
                 cover[(res.Room, res.Day, res.Time + offset)] = (
                     label, offset == 0, cc.Duration)
@@ -426,15 +489,17 @@ class Trace:
         configuration = solution.configuration
 
         rows = []
+        professors_map = getattr(solution, "professors", {}) or {}
         for cc, reservation_index in solution.classes.items():
             res = Reservation.parse(reservation_index)
             room = configuration.getRoomById(res.Room)
+            professor = professors_map.get(cc)
             rows.append((
-                cc.Professor.Id,
+                professor.Id if professor is not None else None,
                 res.Day,
                 res.Time,
                 [
-                    cc.Professor.Name,
+                    professor.Name if professor is not None else "—",
                     cc.Course.Name,
                     Trace.WEEK_DAYS[res.Day],
                     "{} ({}h)".format(res.Time + 1, cc.Duration),

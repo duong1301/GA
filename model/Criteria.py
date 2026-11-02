@@ -3,11 +3,15 @@ from .Constant import Constant
 
 # Đọc tệp cấu hình và lưu các đối tượng đã phân tích
 class Criteria:
-    # Trọng số phạt cho từng tiêu chí, theo thứ tự P (phòng),
+    # Mức phạt của MỘT vi phạm ràng buộc cứng = trọn 1 điểm của tiêu chí đó
+    # (một lớp tối đa 3 điểm, ứng với P - G - N).
+    hardPenalty = 1.0
+
+    # Trọng số phạt cho từng tiêu chí cứng, theo thứ tự P (phòng),
     # G (giảng viên), N (nghỉ trưa).
     # 0 = không phạt, 1 = phạt tối đa (mất trọn 1 điểm của tiêu chí).
     # Điểm của một tiêu chí: đạt = 1; vi phạm = 1 - weight.
-    weights = [1.0, 1.0, 1.0]
+    weights = [hardPenalty, hardPenalty, hardPenalty]
 
     # kiểm tra các lớp học phần có bị trùng phòng hay không
     @staticmethod
@@ -17,9 +21,15 @@ class Criteria:
         return any(True for slot in cls if len(slot) > 1)
 
     # kiểm tra sự trùng lặp giữa các lớp học phần về giảng viên
+    # professors: bảng gán giảng viên của nhiễm sắc thể (lớp -> giảng viên)
     @staticmethod
-    def isOverlappedProf(slots, cc, numberOfRooms, timeId):
+    def isOverlappedProf(slots, cc, numberOfRooms, timeId, professors):
         po = False
+
+        prof = professors.get(cc)
+        if prof is None:
+            # lớp chưa được gán giảng viên -> không phát sinh trùng lịch giảng viên
+            return False
 
         dur = cc.Duration
         for i in range(numberOfRooms, 0, -1):
@@ -29,7 +39,7 @@ class Criteria:
                 for cc1 in cl:
                     if cc != cc1:
                         # giảng viên có bị trùng lịch không?
-                        if not po and cc.professorOverlaps(cc1):
+                        if not po and professors.get(cc1) == prof:
                             po = True
                         # đã phát hiện trùng lịch giảng viên thì dừng kiểm tra
                         if po:
@@ -44,13 +54,19 @@ class Criteria:
         # lớp học vi phạm nếu bất kỳ tiết nào của nó nằm trong khung nghỉ trưa
         return timeId <= Constant.LUNCH_PERIOD < timeId + dur
 
-    # Trọng số phạt cho một vi phạm ràng buộc mềm (soft constraint).
-    # Ràng buộc mềm không bắt buộc phải đạt, chỉ làm giảm điểm số của nhiễm sắc thể.
-    softPenalty = 0.25
-    # Giảng viên được dạy tối đa bao nhiêu tiết trong một ngày (ràng buộc mềm).
-    maxProfHoursPerDay = 6
+    # ------------------------------------------------------------------
+    # RÀNG BUỘC MỀM (soft constraints)
+    # Quy tắc: mọi trọng số mềm phải NHỎ HƠN hardPenalty (1.0), để một vi
+    # phạm mềm không bao giờ đắt bằng một vi phạm cứng. GA vì thế luôn ưu
+    # tiên sửa P/G/N trước, rồi mới tối ưu sự thoải mái của giảng viên.
+    # B tính theo từng vi phạm; A là đại lượng toàn cục có giá trị gốc đã
+    # chặn ở 1.0, nên tổng phạt của nó không vượt quá trọng số.
+    # ------------------------------------------------------------------
 
-    # kiểm tra ràng buộc mềm: giảng viên dạy quá nhiều tiết trong ngày không?
-    @staticmethod
-    def isProfessorDailyOverloaded(hoursPerDay, professorId, day):
-        return hoursPerDay.get((professorId, day), 0) > Criteria.maxProfHoursPerDay
+    # Trọng số phạt cho mỗi lớp bị xếp vào khung giờ bận của giảng viên (B).
+    busyPenalty = 0.2
+
+    # Trọng số cho điểm "phù hợp lịch khả dụng" của giảng viên (A).
+    # Với từng giảng viên: fit = (số tiết xếp vào giờ GV rảnh) / (tổng số tiết GV dạy).
+    # Phạt tối đa availabilityWeight điểm khi toàn bộ tiết đều rơi vào giờ bận.
+    availabilityWeight = 0.4

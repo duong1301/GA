@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from model.AlgorithmParameters import FIELDS, format_value, normalize, summary
 from model.Constant import Constant
+from model.Criteria import Criteria
 from model.Reservation import Reservation
 
 
@@ -33,13 +34,27 @@ class HtmlOutput:
         "Giảng viên bị trùng lịch dạy",
         "Lớp bị xếp vào khung nghỉ trưa 12h-13h",
     )
-    PERIODS = ("",) + tuple(
-        "Nghỉ trưa" if period - 1 == Constant.LUNCH_PERIOD
-        else f"Tiết {period}"
-        for period in range(1, Constant.DAY_HOURS + 1)
+
+    # Ký hiệu + nhãn của các RÀNG BUỘC MỀM (soft constraints) tối ưu lịch giảng dạy.
+    #   B = Bận (tránh khung giờ bận của GV)      [busyPenalty]
+    #   A = Khả dụng (phù hợp lịch GV rảnh)       [availabilityWeight]
+    SOFT_CRITERIAS = ('B', 'A')
+    SOFT_LABELS = (
+        "Tránh khung giờ bận của giảng viên",
+        "Phù hợp lịch khả dụng (xếp vào giờ GV rảnh)",
     )
+    PERIODS = ("",) + tuple(
+        "Nghỉ trưa" if offset == Constant.LUNCH_PERIOD
+        else f"Tiết {Constant.periodNumber(offset)}"
+        for offset in range(Constant.DAY_HOURS)
+    )
+    # Mỗi tiết dài 50 phút và các tiết trong cùng buổi LIỀN NHAU:
+    #   Tiết 1: 7:00-7:50, Tiết 2: 7:50-8:40, ... (không có khoảng nghỉ 10 phút)
+    # Khung nghỉ trưa là khoảng giữa buổi sáng và buổi chiều.
     PERIOD_TIMES = ("",) + tuple(
-        f"{Constant.START_HOUR + offset}:00 – {Constant.START_HOUR + offset + 1}:00"
+        Constant.lunchRange()
+        if offset == Constant.LUNCH_PERIOD
+        else Constant.periodTimeRange(offset)
         for offset in range(Constant.DAY_HOURS)
     )
     WEEK_DAYS = ("T2", "T3", "T4", "T5", "T6")
@@ -61,6 +76,11 @@ class HtmlOutput:
             --bad: #b91c1c;
             --bad-bg: #fef2f2;
             --bad-border: #fecaca;
+            /* Ràng buộc mềm vi phạm: màu cam, phân biệt với đỏ của ràng buộc cứng */
+            --soft: #c2410c;
+            --soft-bg: #fff7ed;
+            --soft-border: #fed7aa;
+            --soft-fill: #ffedd5;
             --amber-bg: #fffbeb;
             --shadow-lg: 0 24px 60px -32px rgba(15, 23, 42, .45);
             --shadow-sm: 0 10px 30px -22px rgba(15, 23, 42, .4);
@@ -315,6 +335,7 @@ class HtmlOutput:
 
         .legend-ok { color: var(--ok); font-weight: 700; }
         .legend-bad { color: var(--bad); font-weight: 700; }
+        .legend-soft { color: var(--soft); font-weight: 700; }
 
         .crit {
             display: inline-flex;
@@ -342,6 +363,162 @@ class HtmlOutput:
             color: var(--bad);
             background: var(--bad-bg);
             border-color: var(--bad-border);
+        }
+
+        /* --- Ràng buộc mềm (soft constraints) --- */
+        .legend-subhead {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+        }
+
+        .legend-subhead h3 {
+            margin: 0 0 4px;
+            font-size: .78rem;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .legend-item--soft {
+            align-items: flex-start;
+            border-style: dashed;
+        }
+
+        .crit--soft {
+            color: var(--soft);
+            background: var(--soft-bg);
+            border-color: var(--soft-border);
+        }
+
+        .soft-body {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 2px;
+            line-height: 1.35;
+        }
+
+        .soft-value {
+            font-size: .72rem;
+            color: var(--muted);
+        }
+
+        /* --- Lưới chọn lịch bận (weekly grid) --- */
+        .busy-grid-section {
+            margin-top: 14px;
+        }
+
+        .busy-grid-block {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface-soft);
+            padding: 12px 14px;
+            margin-bottom: 14px;
+        }
+
+        .busy-grid-title {
+            font-size: .82rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text, #0f172a);
+        }
+
+        .busy-grid {
+            /* Chỉ là khung đóng gói các hàng lưới. Mỗi .busy-row đã tự
+               xây lưới cột đầy đủ (display: grid), nên .busy-grid không
+               nên cũng là grid container — nếu không các hàng sẽ bị lồng
+               lưới và dồn vào một cột duy nhất, không hiển thị dạng lưới.
+               overflow-x: trên màn hẹp mỗi cột vẫn tối thiểu 34px, lưới
+               trượt ngang thay vì co chữ chồng lên nhau. */
+            display: block;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .busy-row {
+            display: grid;
+            grid-template-columns: 34px repeat(12, minmax(34px, 1fr));
+            gap: 4px;
+            align-items: center;
+            width: max-content;
+            min-width: 100%;
+        }
+
+        .busy-corner,
+        .busy-rowlabel,
+        .busy-col {
+            font-size: .68rem;
+            color: var(--muted);
+            text-align: center;
+            align-self: center;
+        }
+
+        .busy-corner {
+            font-weight: 700;
+        }
+
+        /* Cột của lưới chọn giờ bận ghi số tiết và giờ bắt đầu, hai hàng xếp
+           dọc trong ô hẹp, để ô được chọn khớp tuyệt đối với dòng bảng lịch. */
+        .busy-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 0;
+            gap: 1px;
+            line-height: 1.1;
+        }
+
+        .busy-col-name {
+            font-weight: 700;
+        }
+
+        .busy-col-time {
+            font-size: .55rem;
+            white-space: nowrap;
+        }
+
+        .busy-rowlabel {
+            font-weight: 700;
+            font-size: .72rem;
+        }
+
+        .busy-cell {
+            height: 22px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: #fff;
+            cursor: pointer;
+            padding: 0;
+            position: relative;
+        }
+
+        .busy-cell .busy-dot {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+            background: #e2e8f0;
+        }
+
+        .busy-cell.is-busy {
+            border-color: var(--soft);
+            background: var(--soft-fill); /* cam nhạt: khung GV bận, không phải vi phạm cứng */
+            border-width: 2px;
+            cursor: pointer;
+        }
+
+        .busy-cell.is-busy .busy-dot {
+            background: var(--soft);
+        }
+
+        .busy-cell[aria-pressed="true"] {
+            border-color: var(--soft);
+            background: var(--soft-fill);
+            border-width: 2px;
+        }
+
+        .busy-cell[aria-pressed="true"] .busy-dot {
+            background: var(--soft);
         }
 
         .rooms {
@@ -513,6 +690,24 @@ class HtmlOutput:
         .schedule td.slot { padding: 10px 12px; }
         .schedule td.empty { background: #fff; }
 
+        /* Ô trống nhưng giảng viên bận (không dạy được) — sọc cam,
+           thống nhất với màu của ràng buộc mềm (đỏ chỉ dành cho ràng buộc cứng) */
+        .schedule td.empty.busy {
+            background: repeating-linear-gradient(
+                135deg, var(--soft-bg), var(--soft-bg) 7px,
+                var(--soft-fill) 7px, var(--soft-fill) 14px);
+        }
+
+        /* Nhãn đặt trong dải bận liền mạch ("tiết 3-8") */
+        .schedule td.empty.busy .busy-band {
+            display: block;
+            padding: 2px 4px;
+            color: var(--soft);
+            font-size: .68rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
         .schedule tbody tr:nth-child(even) td.empty { background: #fbfcfe; }
 
         /* Hàng khung giờ nghỉ trưa 12h-13h */
@@ -535,7 +730,15 @@ class HtmlOutput:
             background: #fffafa;
         }
 
+        /* Lớp bị xếp vào khung giờ giảng viên bận (vi phạm ràng buộc MỀM):
+           nền cam nhạt + viền trong cam, tách biệt hoàn toàn với đỏ của ràng buộc cứng */
+        .schedule td.filled.busy-soft {
+            background: var(--soft-bg);
+            box-shadow: inset 0 0 0 2px var(--soft-border);
+        }
+
         .schedule tbody tr:hover td.filled { background: #f8fbff; }
+        .schedule tbody tr:hover td.filled.busy-soft { background: var(--soft-fill); }
         .schedule tbody tr:hover td.empty { background: #f8fafc; }
 
         .course {
@@ -658,6 +861,28 @@ class HtmlOutput:
             font-size: .6rem;
             line-height: 1;
         }
+
+        /* Nhãn vi phạm ràng buộc mềm (xếp vào khung giảng viên bận) */
+        .slot-warning--soft {
+            border-color: var(--soft-border);
+            background: var(--soft-fill);
+            color: var(--soft);
+        }
+
+        .slot-warning--soft::before {
+            content: "B";
+            background: var(--soft);
+            font-size: .55rem;
+            font-weight: 800;
+        }
+
+        .badge.badge--busy {
+            color: var(--soft);
+            background: var(--soft-bg);
+            border-color: var(--soft-border);
+        }
+
+        .badge.badge--busy::before { background: var(--soft); }
 
         .tag-continued {
             color: #92400e;
@@ -1725,7 +1950,13 @@ class HtmlOutput:
                 }
 
                 setBusy(true);
-                setStatus("Đang chạy lại thuật toán…");
+                setStatus("Đang chạy thuật toán mới…");
+                const request = { parameters };
+                // Chi gui khoa "busy" khi trang co luoi chon gio ban: danh sach
+                // rong co nghia la da bo het, khong phai la "khong thay doi".
+                if (window.collectBusy) {
+                    request.busy = window.collectBusy();
+                }
                 try {
                     const response = await fetch("/rerun", {
                         method: "POST",
@@ -1733,7 +1964,7 @@ class HtmlOutput:
                             "Accept": "application/json",
                             "Content-Type": "application/json",
                         },
-                        body: JSON.stringify({ parameters }),
+                        body: JSON.stringify(request),
                         cache: "no-store",
                     });
                     let data = {};
@@ -1751,7 +1982,7 @@ class HtmlOutput:
                     const message = error instanceof TypeError
                         ? "Không kết nối được máy chủ. Hãy chạy ConsoleApp.py rồi mở lại trang."
                         : error.message;
-                    setStatus("Không chạy lại được: " + message, true);
+                    setStatus("Không chạy được: " + message, true);
                     setBusy(false);
                 }
             };
@@ -1765,34 +1996,105 @@ class HtmlOutput:
             }
         })();
 
-        // Chuyển tab giữa lịch theo phòng học và lịch theo giảng viên
+        // --- Chọn lịch bận (lưới tuần): click ô để bật/tắt khung giờ bận ---
         (() => {
-            const tabs = Array.from(document.querySelectorAll(".result-tab"));
-            if (!tabs.length) return;
+            const grids = Array.from(document.querySelectorAll(".busy-grid"));
+            if (!grids.length) return;
 
-            const select = active => {
-                tabs.forEach(tab => {
-                    const selected = tab === active;
-                    tab.setAttribute("aria-selected", String(selected));
-                    tab.tabIndex = selected ? 0 : -1;
-                    const panel = document.getElementById(
-                        tab.getAttribute("aria-controls")
-                    );
-                    if (panel) panel.hidden = !selected;
+            const collectBusy = () => {
+                const byProf = {};
+                grids.forEach(gridEl => {
+                    const profId = gridEl.getAttribute("data-prof");
+                    const slots = [];
+                    gridEl.querySelectorAll(".busy-row").forEach(rowEl => {
+                        const dayNum = Number(rowEl.getAttribute("data-day"));
+                        if (Number.isNaN(dayNum)) return;
+                        rowEl.querySelectorAll(".busy-cell").forEach(cellEl => {
+                            const time = Number(cellEl.getAttribute("data-time"));
+                            const busy = cellEl.classList.contains("is-busy");
+                            if (busy) slots.push({ day: dayNum, start: time, end: time });
+                        });
+                    });
+                    // Ghi cả giảng viên không còn ô bận nào (blocks = []) để máy
+                    // chủ phân biệt "đã bỏ hết" với "trang này không có lưới".
+                    const byDay = {};
+                    slots.forEach(s => {
+                        const arr = byDay[s.day] || [];
+                        arr.push(s);
+                        byDay[s.day] = arr;
+                    });
+                    const blocks = [];
+                    Object.keys(byDay).forEach(d => {
+                        const arr = (byDay[d] || []).sort((a, b) => a.start - b.start);
+                        let start = arr[0].start;
+                        let end = arr[0].end;
+                        for (let i = 1; i < arr.length; i++) {
+                            if (arr[i].start === end + 1) { end = arr[i].end; }
+                            else {
+                                blocks.push({ day: Number(d), start: start, end: end });
+                                start = arr[i].start; end = arr[i].end;
+                            }
+                        }
+                        blocks.push({ day: Number(d), start: start, end: end });
+                    });
+                    byProf[profId] = blocks;
                 });
+                return byProf;
             };
 
-            tabs.forEach((tab, index) => {
-                tab.addEventListener("click", () => select(tab));
-                tab.addEventListener("keydown", event => {
-                    const steps = { ArrowLeft: -1, ArrowRight: 1 };
-                    if (!(event.key in steps)) return;
-                    event.preventDefault();
-                    const next = tabs[
-                        (index + steps[event.key] + tabs.length) % tabs.length
-                    ];
-                    next.focus();
-                    select(next);
+            grids.forEach(gridEl => {
+                gridEl.addEventListener("click", event => {
+                    const cell = event.target.closest(".busy-cell");
+                    if (!cell) return;
+                    const profId = cell.getAttribute("data-prof");
+                    const day = Number(cell.getAttribute("data-day"));
+                    const time = Number(cell.getAttribute("data-time"));
+                    document.querySelectorAll(`.busy-grid[data-prof="${profId}"]`).forEach(g => {
+                        const c = g.querySelector(`[data-day="${day}"][data-time="${time}"]`);
+                        if (!c) return;
+                        const willBe = !c.classList.contains("is-busy");
+                        c.classList.toggle("is-busy", willBe);
+                        c.setAttribute("aria-pressed", String(willBe));
+                    });
+                });
+            });
+
+            window.collectBusy = collectBusy;
+        })();
+
+        // Chuyển tab giữa các nhóm tab (lịch theo phòng/giảng viên, dữ liệu đầu vào)
+        (() => {
+            const tabLists = Array.from(
+                document.querySelectorAll('[role="tablist"]')
+            );
+            tabLists.forEach(list => {
+                const tabs = Array.from(list.querySelectorAll(".result-tab"));
+                if (!tabs.length) return;
+
+                const select = active => {
+                    tabs.forEach(tab => {
+                        const selected = tab === active;
+                        tab.setAttribute("aria-selected", String(selected));
+                        tab.tabIndex = selected ? 0 : -1;
+                        const panel = document.getElementById(
+                            tab.getAttribute("aria-controls")
+                        );
+                        if (panel) panel.hidden = !selected;
+                    });
+                };
+
+                tabs.forEach((tab, index) => {
+                    tab.addEventListener("click", () => select(tab));
+                    tab.addEventListener("keydown", event => {
+                        const steps = { ArrowLeft: -1, ArrowRight: 1 };
+                        if (!(event.key in steps)) return;
+                        event.preventDefault();
+                        const next = tabs[
+                            (index + steps[event.key] + tabs.length) % tabs.length
+                        ];
+                        next.focus();
+                        select(next);
+                    });
                 });
             });
         })();
@@ -1836,8 +2138,74 @@ class HtmlOutput:
                 return count > 0 ? count : 10;
             };
 
+            // Khung giờ bận của từng giảng viên (ràng buộc mềm, màu cam).
+            // Tra theo ID giảng viên — cùng khoá với model, không dùng tên hiển
+            // thị vì hai giảng viên trùng tên sẽ dính khung bận của nhau.
+            const busyKeys = new Set();
+            Object.keys(data.busy || {}).forEach(profId => {
+                data.busy[profId].forEach(slot =>
+                    busyKeys.add(profId + "|" + slot[0] + "|" + slot[1]));
+            });
+            const isBusySlot = (profId, day, periodId) =>
+                profId !== null && profId !== undefined &&
+                busyKeys.has(profId + "|" + day + "|" + (periodId - 1));
+            const profNameOf = profId =>
+                (data.profNames || {})[profId] || "—";
+
+            // Số tiết của một offset (0-based), cùng quy ước với periodNumber:
+            // sáng offset 0..5 = tiết 1..6, chiều offset 7..12 = tiết 7..12.
+            const periodNumber = offset =>
+                (offset < data.lunch ? offset + 1 : offset);
+
+            const periodTime = (offset, which) => {
+                const parts = ((data.periods[offset] || ["", ""])[1]).split("–");
+                return which === "start"
+                    ? parts[0].trim()
+                    : parts[parts.length - 1].trim();
+            };
+
+            // Gộp các offset bận thành dải liền mạch trong cùng buổi;
+            // khung nghỉ trưa bị loại nên sáng và chiều không bao giờ liền dải.
+            const busyRuns = (offsets) => {
+                const sorted = [...new Set(offsets)]
+                    .filter(offset => offset !== data.lunch)
+                    .sort((a, b) => a - b);
+                const runs = [];
+                sorted.forEach(offset => {
+                    const last = runs[runs.length - 1];
+                    if (last && offset === last[last.length - 1] + 1) {
+                        last.push(offset);
+                    } else {
+                        runs.push([offset]);
+                    }
+                });
+                return runs;
+            };
+
+            const busyLabel = runs => {
+                if (!runs.length) return "tiết bận";
+                return "tiết " + runs.map(run => {
+                    const first = periodNumber(run[0]);
+                    const last = periodNumber(run[run.length - 1]);
+                    return first === last ? String(first) : first + "-" + last;
+                }).join(", ");
+            };
+
+            const busyTimes = runs => runs.map(run =>
+                periodTime(run[0], "start") + "-" +
+                periodTime(run[run.length - 1], "end")
+            ).join(", ");
+
+            const busyChip = (periodIds) => {
+                const runs = busyRuns(periodIds.map(periodId => periodId - 1));
+                return '<div class="slot-warning slot-warning--soft" title="' +
+                    esc("Ràng buộc mềm: lớp rơi vào khung giờ giảng viên bận" +
+                        (runs.length ? " (" + busyTimes(runs) + ")" : "")) +
+                    '">GV bận · ' + esc(busyLabel(runs)) + "</div>";
+            };
+
             // Huy hiệu P/G/N của một lớp học ở thế hệ đang xem.
-            const criteriaBadges = (bits, offset) => {
+            const criteriaBadges = (bits, offset, busy) => {
                 let html = '<div class="crits">';
                 for (let i = 0; i < letters.length; i++) {
                     const passed = bits.charAt(offset + i) === "1";
@@ -1849,12 +2217,19 @@ class HtmlOutput:
                         esc(letters[i] + " - " + state + ": " + description) +
                         '">' + letters[i] + "</span>";
                 }
+                if (busy) {
+                    html += '<span class="crit crit--soft" title="' +
+                        esc("Vi phạm ràng buộc mềm: lớp rơi vào khung giờ bận") +
+                        '" aria-label="' +
+                        esc("B - Vi phạm ràng buộc mềm: lớp rơi vào khung giờ bận") +
+                        '">B</span>';
+                }
                 return html + "</div>";
             };
 
-            const courseCard = (courseClass, bits, offset, continued) => {
+            const courseCard = (courseClass, profId, bits, offset, continued, busy) => {
                 let html = '<div class="course">' + esc(courseClass.course) +
-                    '</div><div class="prof">' + esc(courseClass.prof) + "</div>";
+                    '</div><div class="prof">' + esc(profNameOf(profId)) + "</div>";
                 if (continued) {
                     html += '<div class="tags">' +
                         '<span class="tag tag-continued">Tiếp tiết</span></div>';
@@ -1862,7 +2237,7 @@ class HtmlOutput:
                     html += '<div class="tags"><span class="tag tag-duration">' +
                         courseClass.dur + " tiết</span></div>";
                 }
-                return html + criteriaBadges(bits, offset);
+                return html + criteriaBadges(bits, offset, busy);
             };
 
             // Sắp các lớp học vào ô (phòng, ngày, tiết) như phần dựng bảng.
@@ -1873,6 +2248,17 @@ class HtmlOutput:
                     if (!slot || !courseClass) return;
                     const key = slot[0] + "|" + (slot[1] + 1);
                     const startPeriod = slot[2] + 1;
+                    // giảng viên được gán ở thế hệ này (ID, đổi theo thế hệ)
+                    const profId = step.v ? step.v[index] : courseClass.prof;
+                    // Các tiết của lớp rơi vào khung bận của giảng viên được giao.
+                    const busyPeriods = [];
+                    for (let offset = 0; offset < courseClass.dur; offset++) {
+                        const periodId = startPeriod + offset;
+                        if (periodId >= data.rows) break;
+                        if (isBusySlot(profId, slot[1], periodId)) {
+                            busyPeriods.push(periodId);
+                        }
+                    }
                     for (let offset = 0; offset < courseClass.dur; offset++) {
                         const periodId = startPeriod + offset;
                         if (periodId >= data.rows) break;
@@ -1881,8 +2267,11 @@ class HtmlOutput:
                         list.push({
                             start: startPeriod,
                             course: courseClass,
+                            prof: profId,
                             bits: step.b,
                             offset: index * letters.length,
+                            busy: busyPeriods.indexOf(periodId) >= 0,
+                            busyPeriods: busyPeriods,
                         });
                         bucket[periodId] = list;
                         slots.set(key, bucket);
@@ -1924,25 +2313,52 @@ class HtmlOutput:
                         if (!hasOverlap && entries.length === 1) {
                             const entry = entries[0];
                             if (entry.start === periodId) {
-                                const span = Math.min(
+                                let span = Math.min(
                                     entry.course.dur,
                                     data.rows - periodId
                                 );
-                                cellsHtml += '<td class="slot filled"' +
+                                // Chỉ cắt rowspan ở chỗ chuyển từ tiết rảnh sang
+                                // tiết bận: lớp nằm trọn trong một dải bận thành
+                                // một ô duy nhất với nhãn gọn thay vì rời rạc.
+                                let cut = 0;
+                                let wasBusy = entry.busyPeriods.includes(periodId);
+                                for (let pid = periodId + 1; pid < periodId + span; pid++) {
+                                    const isBusy = entry.busyPeriods.includes(pid);
+                                    if (isBusy && !wasBusy) {
+                                        cut = pid;
+                                        break;
+                                    }
+                                    wasBusy = isBusy;
+                                }
+                                if (cut) {
+                                    span = Math.min(span, cut - periodId);
+                                }
+                                const cellBusyPeriods = entry.busyPeriods.filter(
+                                    period => period >= periodId &&
+                                             period < periodId + span
+                                );
+                                cellsHtml += '<td class="slot filled' +
+                                    (cellBusyPeriods.length ? " busy-soft" : "") + '"' +
                                     (span > 1 ? ' rowspan="' + span + '"' : "") +
-                                    '><div class="course-card">' +
+                                    '>' + (cellBusyPeriods.length
+                                        ? busyChip(cellBusyPeriods) : "") +
+                                    '<div class="course-card">' +
                                     courseCard(
-                                        entry.course, entry.bits, entry.offset, false
+                                        entry.course, entry.prof, entry.bits,
+                                        entry.offset, false, entry.busyPeriods.length > 0
                                     ) +
                                     "</div></td>";
                                 for (let step = 1; step < span; step++) {
                                     dayCovered.add(periodId + step);
                                 }
                             } else {
-                                cellsHtml += '<td class="slot filled">' +
+                                cellsHtml += '<td class="slot filled' +
+                                    (entry.busy ? " busy-soft" : "") + '">' +
+                                    (entry.busy ? busyChip([periodId]) : "") +
                                     '<div class="course-card continued">' +
                                     courseCard(
-                                        entry.course, entry.bits, entry.offset, true
+                                        entry.course, entry.prof, entry.bits,
+                                        entry.offset, true, entry.busy
                                     ) +
                                     "</div></td>";
                             }
@@ -1950,19 +2366,24 @@ class HtmlOutput:
                         }
 
                         let cards = "";
+                        let stackBusy = false;
                         if (entries.length > 1) {
                             cards += '<div class="slot-warning">Trùng phòng</div>';
                         }
                         entries.forEach(entry => {
                             const first = entry.start === periodId;
-                            cards += '<div class="course-card' +
+                            if (entry.busy) stackBusy = true;
+                            cards += (entry.busy ? busyChip([periodId]) : "") +
+                                '<div class="course-card' +
                                 (first ? "" : " continued") + '">' +
                                 courseCard(
-                                    entry.course, entry.bits, entry.offset, !first
+                                    entry.course, entry.prof, entry.bits,
+                                    entry.offset, !first, entry.busy
                                 ) +
                                 "</div>";
                         });
-                        cellsHtml += '<td class="slot filled conflict">' +
+                        cellsHtml += '<td class="slot filled conflict' +
+                            (stackBusy ? " busy-soft" : "") + '">' +
                             '<div class="slot-stack">' + cards + "</div></td>";
                     }
 
@@ -2082,8 +2503,8 @@ class HtmlOutput:
     </script>"""
 
     @staticmethod
-    def getCriteriaBadges(criterias, ci):
-        """Tạo các huy hiệu tiêu chí (P/G/N) cho một lớp học."""
+    def getCriteriaBadges(criterias, ci, busy=False):
+        """Tạo các huy hiệu tiêu chí (P/G/N, thêm B nếu dính khung bận) cho một lớp."""
         sb = ['<div class="crits">']
         for i, letter in enumerate(HtmlOutput.CRITERIAS):
             passed = bool(criterias[ci + i])
@@ -2098,15 +2519,29 @@ class HtmlOutput:
             sb.append('">')
             sb.append(letter)
             sb.append('</span>')
+
+        if busy:
+            description = (
+                "Vi phạm ràng buộc mềm: có tiết rơi vào khung giờ giảng viên bận "
+                "(phạt ×{:g} điểm, nhẹ hơn ràng buộc cứng ×{:g} điểm)".format(
+                    Criteria.busyPenalty, Criteria.hardPenalty)
+            )
+            sb.append('<span class="crit crit--soft" title="')
+            sb.append(html.escape(description))
+            sb.append('" aria-label="')
+            sb.append(html.escape("B - " + description))
+            sb.append('">B</span>')
+
         sb.append('</div>')
         return "".join(sb)
 
     @staticmethod
-    def getCourseClass(cc, criterias, ci):
+    def getCourseClass(cc, criterias, ci, professor=None, busy=False):
         """Tạo nội dung HTML cho một ô lịch (môn học, giảng viên, tiêu chí)."""
+        professor_name = professor.Name if professor is not None else "—"
         sb = [
             '<div class="course">', html.escape(cc.Course.Name), '</div>',
-            '<div class="prof">', html.escape(cc.Professor.Name), '</div>',
+            '<div class="prof">', html.escape(professor_name), '</div>',
         ]
 
         if cc.Duration > 1:
@@ -2114,15 +2549,15 @@ class HtmlOutput:
             sb.append(f'<span class="tag tag-duration">{cc.Duration} tiết</span>')
             sb.append('</div>')
 
-        sb.append(HtmlOutput.getCriteriaBadges(criterias, ci))
+        sb.append(HtmlOutput.getCriteriaBadges(criterias, ci, busy=busy))
         return "".join(sb)
 
     @staticmethod
-    def getContinuedClass(cc, criterias, ci):
+    def getContinuedClass(cc, criterias, ci, professor=None):
         """Phiên bản rút gọn cho các tiết tiếp theo của lớp đang kéo dài."""
         return "".join([
             '<div class="course">', html.escape(cc.Course.Name), '</div>',
-            '<div class="prof">', html.escape(cc.Professor.Name), '</div>',
+            '<div class="prof">', html.escape(professor.Name if professor is not None else "—"), '</div>',
             '<div class="tags"><span class="tag tag-continued">Tiếp tiết</span></div>',
             HtmlOutput.getCriteriaBadges(criterias, ci),
         ])
@@ -2144,12 +2579,18 @@ class HtmlOutput:
             startPeriod = reservation.Time + 1
             roomId = reservation.Room
             duration = cc.Duration
+            professor = solution.professors.get(cc) if hasattr(solution, "professors") else None
+            busy_periods = HtmlOutput.busyPeriods(
+                professor, reservation.Day, startPeriod, duration)
 
             entry = {
                 "start": startPeriod,
                 "duration": duration,
-                "html": getCourseClass(cc, solution.criteria, ci),
-                "continued": getContinuedClass(cc, solution.criteria, ci),
+                "busy_periods": busy_periods,
+                "html": getCourseClass(
+                    cc, solution.criteria, ci, professor,
+                    busy=bool(busy_periods)),
+                "continued": getContinuedClass(cc, solution.criteria, ci, professor),
             }
 
             for offset in range(duration):
@@ -2168,21 +2609,111 @@ class HtmlOutput:
         return entries_by_slot, overlapping_slots
 
     @staticmethod
-    def getHtmlCell(content, rowspan):
-        if content is None:
-            return '<td class="slot empty"></td>'
+    def busyPeriods(professor, day, startPeriod, duration):
+        """Các tiết (periodId 1-based) của lớp rơi vào khung giảng viên bận."""
+        if professor is None or not professor.BusySlots:
+            return []
+        return [
+            startPeriod + offset
+            for offset in range(duration)
+            if (day, startPeriod - 1 + offset) in professor.BusySlots
+        ]
 
+    @staticmethod
+    def splitBusyRuns(offsets):
+        """Chia các chỉ số offset (0-based) thành từng dải liên tiếp trong một buổi.
+
+        Khung nghỉ trưa bị loại và không được nối liền với hai buổi bên cạnh,
+        nhờ vậy mỗi dải tương ứng đúng một khoảng giờ đồng nhất.
+        """
+        runs = []
+        for offset in sorted({offset for offset in offsets}):
+            if offset == Constant.LUNCH_PERIOD:
+                continue
+            if runs and offset == runs[-1][-1] + 1:
+                runs[-1].append(offset)
+            else:
+                runs.append([offset])
+        return runs
+
+    @staticmethod
+    def formatBusyRuns(runs):
+        """Nhãn gọn 'tiết 2-3, 7' từ các dải offset, khớp số tiết của bảng lịch."""
+        parts = []
+        for run in runs:
+            first = Constant.periodNumber(run[0])
+            last = Constant.periodNumber(run[-1])
+            parts.append(str(first) if first == last else f"{first}-{last}")
+        if not parts:
+            return "tiết bận"
+        return "tiết " + ", ".join(parts)
+
+    @staticmethod
+    def formatBusyRunTimes(runs):
+        """Khung giờ của từng dải bận, VD '9:50–11:40, 13:00–13:50'."""
+        parts = []
+        for run in runs:
+            start = Constant.periodStart(run[0])
+            end = Constant.periodStart(run[-1]) + Constant.PERIOD_MINUTES
+            parts.append("{}–{}".format(
+                Constant.formatHM(start), Constant.formatHM(end)))
+        return ", ".join(parts)
+
+    @staticmethod
+    def getBusyChip(period_ids):
+        """Nhãn cam báo một lớp bị xếp vào khung bận của giảng viên (ràng buộc mềm)."""
+        runs = HtmlOutput.splitBusyRuns(period_id - 1 for period_id in period_ids)
+        label = HtmlOutput.formatBusyRuns(runs)
+        times = HtmlOutput.formatBusyRunTimes(runs)
+        title = (
+            "Ràng buộc mềm: lớp rơi vào khung giờ giảng viên bận"
+            + (f" ({times})" if times else "")
+            + ". Phạt ×{:g} điểm, nhẹ hơn vi phạm ràng buộc cứng (×{:g} điểm)."
+            .format(Criteria.busyPenalty, Criteria.hardPenalty)
+        )
+        return (
+            '<div class="slot-warning slot-warning--soft" title="{}">'
+            'GV bận · {}</div>'.format(html.escape(title), html.escape(label))
+        )
+
+    @staticmethod
+    def getHtmlCell(content, rowspan, busy=False, soft=False, title="", band_label=""):
+        if content is None:
+            if not busy:
+                return '<td class="slot empty"></td>'
+            span = (
+                ' rowspan="{}"'.format(int(rowspan))
+                if rowspan and rowspan > 1 else ""
+            )
+            band = (
+                '<span class="busy-band">{}</span>'.format(html.escape(band_label))
+                if band_label else ""
+            )
+            return ('<td class="slot empty busy"{} title="{}">{}</td>'.format(
+                span, html.escape(title), band))
+
+        cls = "slot filled" + (" busy-soft" if soft else "")
         if rowspan and rowspan > 1:
-            return f'<td class="slot filled" rowspan="{int(rowspan)}">{content}</td>'
-        return f'<td class="slot filled">{content}</td>'
+            return f'<td class="{cls}" rowspan="{int(rowspan)}">{content}</td>'
+        return f'<td class="{cls}">{content}</td>'
 
     @staticmethod
     def getScheduleTable(key, entries_by_slot, overlapping_slots,
-                         overlap_label="Trùng phòng", caption=""):
+                         overlap_label="Trùng phòng", caption="",
+                         busy_slots=None):
         """Dựng bảng lịch theo ngày (gồm cả khung nghỉ trưa) cho khóa/phòng/GV."""
         rows = []
         covered = {
             dayId: set()
+            for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER)
+        }
+        # Số thứ tự tiết (1-based) mà giảng viên báo bận trong từng ngày, dùng để
+        # gộp các ô bận liền mạch thành một dải duy nhất.
+        day_busy = {
+            dayId: {
+                offset + 1 for (busyDay, offset) in (busy_slots or ())
+                if busyDay == dayId - 1 and offset != Constant.LUNCH_PERIOD
+            }
             for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER)
         }
 
@@ -2196,48 +2727,102 @@ class HtmlOutput:
                 day_entries = entries_by_slot.get((key, dayId), {})
                 slot_entries = day_entries.get(periodId, [])
                 if not slot_entries:
-                    cells.append('<td class="slot empty"></td>')
+                    if periodId not in day_busy[dayId]:
+                        cells.append('<td class="slot empty"></td>')
+                        continue
+
+                    # Gom suốt dải bận còn trống phía dưới thành một ô sọc
+                    # duy nhất, dán nhãn "tiết 3-8" để lịch bận đọc liền mạch.
+                    band = [periodId]
+                    pid = periodId + 1
+                    while (pid in day_busy[dayId]
+                           and pid < HtmlOutput.ROOM_ROW_NUMBER
+                           and pid not in covered[dayId]
+                           and not day_entries.get(pid)):
+                        band.append(pid)
+                        pid += 1
+                    covered[dayId].update(band[1:])
+
+                    runs = HtmlOutput.splitBusyRuns(period - 1 for period in band)
+                    label = HtmlOutput.formatBusyRuns(runs)
+                    times = HtmlOutput.formatBusyRunTimes(runs)
+                    cells.append(HtmlOutput.getHtmlCell(
+                        None, len(band), busy=True,
+                        title="Giảng viên bận · {} ({})".format(label, times),
+                        band_label=label))
                     continue
 
                 has_overlap = (key, dayId) in overlapping_slots
                 if not has_overlap and len(slot_entries) == 1:
                     entry = slot_entries[0]
+                    busy_set = set(entry.get("busy_periods") or ())
                     if entry["start"] == periodId:
                         span = min(
                             entry["duration"],
                             HtmlOutput.ROOM_ROW_NUMBER - periodId,
                         )
+                        # Chỉ cắt rowspan ở chỗ chuyển từ tiết rảnh sang tiết bận;
+                        # lớp nằm trọn trong một dải bận thành ô duy nhất kèm nhãn
+                        # gọn "tiết 9-12" thay vì mỗi tiết một ô rời rạc.
+                        cut = None
+                        was_busy = periodId in busy_set
+                        for pid in range(periodId + 1, periodId + span):
+                            is_busy = pid in busy_set
+                            if is_busy and not was_busy:
+                                cut = pid
+                                break
+                            was_busy = is_busy
+                        if cut is not None:
+                            span = cut - periodId
+                        cell_busy = sorted(
+                            pid for pid in busy_set
+                            if periodId <= pid < periodId + span
+                        )
                         content = f'<div class="course-card">{entry["html"]}</div>'
-                        cells.append(HtmlOutput.getHtmlCell(content, span))
+                        if cell_busy:
+                            content = HtmlOutput.getBusyChip(cell_busy) + content
+                        cells.append(HtmlOutput.getHtmlCell(
+                            content, span, soft=bool(cell_busy)))
                         if span > 1:
                             covered[dayId].update(
                                 range(periodId + 1, periodId + span)
                             )
                         continue
 
+                    is_busy = periodId in busy_set
                     content = (
-                        f'<div class="course-card continued">'
+                        (HtmlOutput.getBusyChip([periodId]) if is_busy else "")
+                        + f'<div class="course-card continued">'
                         f'{entry["continued"]}</div>'
                     )
-                    cells.append(f'<td class="slot filled">{content}</td>')
+                    cells.append(
+                        HtmlOutput.getHtmlCell(content, None, soft=is_busy)
+                    )
                     continue
 
                 # Trùng phòng: xếp chồng mọi lớp đang diễn ra trong cùng ô.
                 cards = []
                 if len(slot_entries) > 1:
                     cards.append(f'<div class="slot-warning">{overlap_label}</div>')
+                any_busy = False
                 for entry in slot_entries:
+                    is_busy = periodId in set(entry.get("busy_periods") or ())
+                    any_busy = any_busy or is_busy
+                    chip = HtmlOutput.getBusyChip([periodId]) if is_busy else ""
                     if entry["start"] == periodId:
                         cards.append(
-                            f'<div class="course-card">{entry["html"]}</div>'
+                            chip + f'<div class="course-card">{entry["html"]}</div>'
                         )
                     else:
                         cards.append(
-                            f'<div class="course-card continued">'
+                            chip + f'<div class="course-card continued">'
                             f'{entry["continued"]}</div>'
                         )
                 content = f'<div class="slot-stack">{"".join(cards)}</div>'
-                cells.append(f'<td class="slot filled conflict">{content}</td>')
+                cells.append(
+                    '<td class="slot filled conflict{}">{}</td>'.format(
+                        " busy-soft" if any_busy else "", content)
+                )
 
             is_lunch = periodId - 1 == Constant.LUNCH_PERIOD
             rows.append(
@@ -2299,14 +2884,20 @@ class HtmlOutput:
     def generateProfessorTimeTable(solution):
         """Dựng lịch theo giảng viên/ngày/tiết; mỗi ô ghi môn học và phòng."""
         entries_by_slot = defaultdict(lambda: defaultdict(list))
+        busy_classes = defaultdict(int)   # profId -> số lớp dính khung bận
 
         for cc, reservation_index in solution.classes.items():
             reservation = Reservation.parse(reservation_index)
 
             dayId = reservation.Day + 1
             startPeriod = reservation.Time + 1
-            profId = cc.Professor.Id
+            professor = solution.professors.get(cc) if hasattr(solution, "professors") else None
+            profId = professor.Id if professor is not None else None
             duration = cc.Duration
+            busy_periods = HtmlOutput.busyPeriods(
+                professor, reservation.Day, startPeriod, duration)
+            if busy_periods:
+                busy_classes[profId] += 1
 
             room = solution.configuration.getRoomById(reservation.Room)
             room_name = room.Name if room is not None else f"Phòng {reservation.Room}"
@@ -2314,6 +2905,7 @@ class HtmlOutput:
             entry = {
                 "start": startPeriod,
                 "duration": duration,
+                "busy_periods": busy_periods,
                 "html": (
                     '<div class="course">'
                     + html.escape(cc.Course.Name)
@@ -2343,11 +2935,11 @@ class HtmlOutput:
             for key, periods in entries_by_slot.items()
             if any(len(entries) > 1 for entries in periods.values())
         }
-        return entries_by_slot, overlapping_slots
+        return entries_by_slot, overlapping_slots, busy_classes
 
     @staticmethod
     def getProfessorTable(professor, profId, entries_by_slot, overlapping_slots,
-                          total_hours, number_of_courses):
+                          total_hours, number_of_courses, busy_classes=0):
         """Bảng thời khóa biểu của một giảng viên."""
         table = HtmlOutput.getScheduleTable(
             profId,
@@ -2355,6 +2947,13 @@ class HtmlOutput:
             overlapping_slots,
             overlap_label="Trùng lịch giảng viên",
             caption=f"Lịch giảng dạy của {professor.Name}",
+            busy_slots=professor.BusySlots,
+        )
+        busy_badge = (
+            '<span class="badge badge--busy" '
+            'title="Lớp bị xếp vào khung giờ giảng viên bận (ràng buộc mềm)">'
+            f'{busy_classes} lớp dính bận</span>'
+            if busy_classes else ""
         )
         return (
             '<details class="room prof-item" open>'
@@ -2366,6 +2965,7 @@ class HtmlOutput:
             '<div class="room-badges">'
             f'<span class="badge">{total_hours} tiết/tuần</span>'
             f'<span class="badge">{number_of_courses} môn</span>'
+            f'{busy_badge}'
             '</div>'
             '</summary>'
             '<p class="scroll-hint">Vuốt ngang để xem đủ các ngày '
@@ -2380,9 +2980,8 @@ class HtmlOutput:
     def getProfessorSections(solution):
         """Tạo các bảng lịch giảng dạy của từng giảng viên."""
         configuration = solution.configuration
-        entries_by_slot, overlapping_slots = HtmlOutput.generateProfessorTimeTable(
-            solution
-        )
+        (entries_by_slot, overlapping_slots,
+         busy_classes) = HtmlOutput.generateProfessorTimeTable(solution)
         if not entries_by_slot:
             return (
                 '<div class="empty-state">'
@@ -2393,9 +2992,14 @@ class HtmlOutput:
         # tổng số tiết và số môn của từng giảng viên trong tuần
         hours = defaultdict(int)
         courses = defaultdict(set)
+        professors_map = solution.professors if hasattr(solution, "professors") else {}
         for cc in solution.classes:
-            hours[cc.Professor.Id] += cc.Duration
-            courses[cc.Professor.Id].add(cc.Course.Name)
+            professor = professors_map.get(cc)
+            if professor is None:
+                continue
+            profId = professor.Id
+            hours[profId] += cc.Duration
+            courses[profId].add(cc.Course.Name)
 
         sections = []
         for professor in sorted(
@@ -2413,6 +3017,7 @@ class HtmlOutput:
                     overlapping_slots,
                     hours[profId],
                     len(courses[profId]),
+                    busy_classes.get(profId, 0),
                 )
             )
         return "".join(sections)
@@ -2451,6 +3056,7 @@ class HtmlOutput:
         return SimpleNamespace(
             configuration=entry["configuration"],
             classes=entry["classes"],
+            professors=entry.get("professors", {}),
             criteria=entry["criteria"],
             fitness=entry["fitness"],
         )
@@ -2491,10 +3097,14 @@ class HtmlOutput:
         order = list((history[0].get("classes") or {}).keys())
         position = {course_class: index
                     for index, course_class in enumerate(order)}
+        first_professors = history[0].get("professors") or {}
+        # Lop hoc gan voi ID giang vien (khong phai ten) de moi lien kiet trong
+        # trinh duyet deu tra theo khoa ID nhu model.
         classes = [
             {
                 "course": course_class.Course.Name,
-                "prof": course_class.Professor.Name,
+                "prof": (first_professors[course_class].Id
+                         if first_professors.get(course_class) is not None else None),
                 "dur": int(course_class.Duration),
             }
             for course_class in order
@@ -2502,10 +3112,20 @@ class HtmlOutput:
 
         configuration = history[0].get("configuration")
         rooms = []
+        busy_by_professor = {}
+        professor_names = {}
         if configuration is not None:
             for room_id in range(configuration.numberOfRooms):
                 room = configuration.getRoomById(room_id)
                 rooms.append(room.Name if room is not None else "Phòng {}".format(room_id))
+            # khung bận của từng giảng viên, để trình duyệt tô ô vi phạm ràng buộc mềm
+            for professor in configuration._professors.values():
+                professor_names[professor.Id] = professor.Name
+                if professor.BusySlots:
+                    busy_by_professor[professor.Id] = sorted(
+                        [int(day), int(period)]
+                        for day, period in professor.BusySlots
+                    )
 
         step_size = len(HtmlOutput.CRITERIAS)
         steps = []
@@ -2535,6 +3155,14 @@ class HtmlOutput:
                                  int(reservation.Day),
                                  int(reservation.Time)]
 
+            # ID giảng viên được gán cho từng lớp ở thế hệ này (đổi theo thế hệ)
+            entry_professors = entry.get("professors") or {}
+            prof_ids = [
+                (entry_professors[course_class].Id
+                 if entry_professors.get(course_class) is not None else None)
+                for course_class in order
+            ]
+
             steps.append({
                 "g": int(entry.get("generation", len(steps) + 1)),
                 "f": float(entry.get("fitness", 0.0)),
@@ -2545,6 +3173,7 @@ class HtmlOutput:
                 "z": int(entry.get("bestNotEnhance", 0) or 0),
                 "b": "".join(flags),
                 "s": slots,
+                "v": prof_ids,
             })
 
         payload = {
@@ -2559,6 +3188,8 @@ class HtmlOutput:
             "rows": HtmlOutput.ROOM_ROW_NUMBER,
             "cols": HtmlOutput.ROOM_COLUMN_NUMBER,
             "rooms": rooms,
+            "profNames": professor_names,
+            "busy": busy_by_professor,
             "classes": classes,
             "steps": steps,
         }
@@ -3016,39 +3647,210 @@ class HtmlOutput:
         )
 
     @staticmethod
+    def formatBusySlots(slots):
+        """Định dạng các ô bận (day, offset) thành chuỗi khớp đúng bảng lịch.
+
+        Số tiết lấy từ Constant.periodNumber nên buổi chiều (offset 7..12) hiện
+        là tiết 7..12 chứ không phải 8..13, và mỗi ngày được gộp gọn thành một
+        cụm. VD: {(0,1),(0,2),(0,7),(0,8),(0,9),(0,10)} -> 'T2 tiết 2-3, 7-10'.
+        """
+        offsets_by_day = {}
+        for day, offset in slots:
+            offsets_by_day.setdefault(day, []).append(offset)
+
+        parts = []
+        for day in sorted(offsets_by_day):
+            runs = HtmlOutput.splitBusyRuns(offsets_by_day[day])
+            if not runs:
+                continue
+            day_name = (HtmlOutput.WEEK_DAYS[day]
+                        if 0 <= day < len(HtmlOutput.WEEK_DAYS)
+                        else f"Ngày {day + 1}")
+            parts.append("{} {}".format(day_name, HtmlOutput.formatBusyRuns(runs)))
+
+        if not parts:
+            return "—"
+        return " · ".join(parts)
+
+    @staticmethod
+    def getSoftMetrics(solution):
+        """Tính các số đo của ràng buộc mềm cho một lời giải.
+
+        Trả về dict: 'B' = số lớp rơi vào khung bận, 'A' = tỉ lệ xếp đúng giờ
+        rảnh (0..1).
+        """
+        classes = getattr(solution, "classes", None) or {}
+        professors = getattr(solution, "professors", None) or {}
+
+        busy_violations = 0          # B
+        available_periods = 0
+        total_periods = 0
+
+        for cc, reservation_index in classes.items():
+            prof = professors.get(cc)
+            if prof is None:
+                continue
+            reservation = Reservation.parse(reservation_index)
+            day, time, dur = reservation.Day, reservation.Time, cc.Duration
+
+            # B: đếm lớp có ít nhất một tiết rơi vào khung bận
+            in_busy = False
+            for off in range(dur):
+                total_periods += 1
+                if prof.isBusyAt(day, time + off):
+                    in_busy = True
+                else:
+                    available_periods += 1
+            if in_busy:
+                busy_violations += 1
+
+        # A: tỉ lệ số tiết xếp vào giờ giảng viên rảnh
+        availability_fit = (available_periods / total_periods) if total_periods else 1.0
+
+        return {
+            'B': busy_violations,
+            'A': availability_fit,
+        }
+
+    @staticmethod
+    def getSoftLegendHtml(solution):
+        """Dựng mục 'Ràng buộc mềm' hiển thị ký hiệu + trọng số + giá trị hiện tại."""
+        metrics = HtmlOutput.getSoftMetrics(solution)
+        classes = getattr(solution, "classes", None) or {}
+        has_solution = bool(classes)
+
+        # trọng số của từng ràng buộc mềm (để người dùng thấy mức phạt)
+        weights = {
+            'B': Criteria.busyPenalty,
+            'A': Criteria.availabilityWeight,
+        }
+
+        def fmt(letter):
+            if not has_solution:
+                return "—"
+            value = metrics.get(letter, 0)
+            if letter == 'A':
+                return f"{value * 100:.1f}% giờ rảnh"
+            return f"{value} lớp dính bận"
+
+        items = "".join(
+            '<li class="legend-item legend-item--soft">'
+            f'<span class="crit crit--soft">{letter}</span>'
+            '<span class="soft-body">'
+            f'<span>{html.escape(label)}</span>'
+            f'<span class="soft-value">phạt ×{weights[letter]:g} · {fmt(letter)}</span>'
+            '</span></li>'
+            for letter, label in zip(HtmlOutput.SOFT_CRITERIAS, HtmlOutput.SOFT_LABELS)
+        )
+
+        return (
+            '<div class="legend-subhead">'
+            '<h3>Ràng buộc mềm (tối ưu lịch giảng dạy)</h3>'
+            '<p class="legend-note">Không bắt buộc đạt và <strong>luôn nhẹ hơn '
+            'ràng buộc cứng</strong>: một vi phạm mềm phạt dưới '
+            f'{Criteria.hardPenalty:g} điểm, trong khi một vi phạm cứng mất trọn '
+            f'{Criteria.hardPenalty:g} điểm. Thuật toán vì thế sửa P/G/N trước, '
+            'rồi mới tối ưu giờ rảnh của giảng viên. '
+            'B = bận · A = khả dụng.</p>'
+            '</div>'
+            f'<ul class="legend-items">{items}</ul>'
+        )
+
+    @staticmethod
+    def getBusyGridsHtml(configuration):
+        """Dựng các lưới lịch bận (click để chọn/bật tắt ô bận) cho từng giảng viên."""
+        profs = sorted(configuration._professors.values(), key=lambda item: item.Id)
+        periods = [i for i in range(Constant.DAY_HOURS) if i != Constant.LUNCH_PERIOD]
+        parts = []
+        for prof in profs:
+            is_busy = set(prof.BusySlots)
+            head_cells = []
+            for p in periods:
+                head_cells.append(
+                    '<span class="busy-col" data-period="{}" title="{}">'
+                    '<span class="busy-col-name">{}</span>'
+                    '<span class="busy-col-time">{}</span></span>'.format(
+                        p,
+                        html.escape("Tiết {} · {}".format(
+                            Constant.periodNumber(p),
+                            Constant.periodTimeRange(p, sep="-"))),
+                        Constant.periodNumber(p),
+                        # chỉ ghi giờ bắt đầu cho cột gọn không tràn hàng
+                        html.escape(Constant.formatHM(Constant.periodStart(p)))))
+            head_html = (
+                '<div class="busy-row busy-row-head">'
+                '<span class="busy-corner" title="Số tiết và giờ bắt đầu">Tiết'
+                '</span>' + "".join(head_cells) + '</div>')
+
+            rows_html = []
+            for d in range(Constant.DAYS_NUM):
+                cells = []
+                for p in periods:
+                    busy = (d, p) in is_busy
+                    busy_cls = " is-busy" if busy else ""
+                    cells.append(
+                        '<button type="button" class="busy-cell{}" '
+                        'data-prof="{pid}" data-day="{day}" data-time="{time}" '
+                        'aria-pressed="{pressed}" title="{label}">'
+                        '<span class="busy-dot"></span></button>'.format(
+                            busy_cls, pid=prof.Id, day=d, time=p,
+                            pressed="true" if busy else "false",
+                            label=html.escape("{} · tiết {} · {}".format(
+                                HtmlOutput.WEEK_DAYS[d],
+                                Constant.periodNumber(p),
+                                Constant.periodTimeRange(p, sep="-")))))
+                rows_html.append(
+                    '<div class="busy-row"><span class="busy-rowlabel" data-day="{}">{}</span>{}</div>'.format(
+                        d, HtmlOutput.WEEK_DAYS[d], "".join(cells)))
+            grid = (
+                '<div class="busy-grid" data-prof="{}">'
+                + head_html + "".join(rows_html) + '</div>').format(prof.Id)
+            block = (
+                '<div class="busy-grid-block" data-prof="{}">'
+                '<div class="busy-grid-title">GV {} · {}</div>'
+                + grid + '</div>').format(prof.Id, prof.Id, html.escape(prof.Name))
+            parts.append(block)
+        return "".join(parts)
+
+    @staticmethod
     def getInputSection(solution):
-        """Hiển thị danh sách giảng viên, môn học và phòng học."""
+        """Hiển thị dữ liệu đầu vào theo tab: giảng viên, lớp học phần, phòng học."""
         configuration = solution.configuration
         classes = list(configuration.courseClasses)
 
         professors = sorted(configuration._professors.values(), key=lambda item: item.Id)
         professor_rows = []
         for professor in professors:
+            # hiển thị năng lực giảng dạy (các môn phụ trách) từ danh sách subjects
             courses = sorted(
-                {cc.Course.Name for cc in professor.CourseClasses},
+                {
+                    configuration.getCourseById(cid).Name
+                    for cid in professor.Subjects
+                    if configuration.getCourseById(cid) is not None
+                },
                 key=str.casefold,
             )
+            # giảng viên tự chọn số tiết bận trong tuần
+            busy_text = HtmlOutput.formatBusySlots(professor.BusySlots)
             professor_rows.append([
                 professor.Id,
                 professor.Name,
                 ", ".join(courses) if courses else "—",
+                len(professor.BusySlots),
+                busy_text,
             ])
 
-        courses = sorted(configuration._courses.values(), key=lambda item: item.Id)
-        course_rows = []
-        total_classes = 0
-        total_periods = 0
-        for course in courses:
-            course_classes = [cc for cc in classes if cc.Course.Id == course.Id]
-            total_classes += len(course_classes)
-            total_periods += sum(cc.Duration for cc in course_classes)
-            course_rows.append([
-                course.Id,
-                course.Name,
-                len(course_classes),
-                sum(cc.Duration for cc in course_classes),
+        class_rows = []
+        for course_class in sorted(
+            classes, key=lambda item: (item.Course.Id, item.Id)
+        ):
+            # giảng viên không còn cài sẵn: GA tự gán khi xếp lịch
+            class_rows.append([
+                course_class.Id,
+                course_class.Course.Name,
+                course_class.Duration,
             ])
-        course_footer = ["", "Tổng cộng", total_classes, total_periods]
+        class_footer = ["", "Tổng cộng", sum(row[2] for row in class_rows)]
 
         capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM
         rooms = sorted(configuration._rooms.values(), key=lambda item: item.Id)
@@ -3057,39 +3859,37 @@ class HtmlOutput:
             for room in rooms
         ]
 
-        cards = [
-            HtmlOutput.getInputCard(
-                "Giảng viên",
-                len(professor_rows),
-                HtmlOutput.getInputTable(
-                    ["Mã", "Họ tên", "Môn học phụ trách"],
-                    professor_rows,
-                    ["r", "l", "l"],
-                ),
+        professor_card = HtmlOutput.getInputCard(
+            "Giảng viên",
+            len(professor_rows),
+            HtmlOutput.getInputTable(
+                ["Mã", "Họ tên", "Môn học phụ trách", "Số tiết bận", "Lịch bận"],
+                professor_rows,
+                ["r", "l", "l", "c", "l"],
             ),
-            HtmlOutput.getInputCard(
-                "Môn học",
-                len(course_rows),
-                HtmlOutput.getInputTable(
-                    ["Mã", "Môn học", "Số lớp", "Số tiết/tuần"],
-                    course_rows,
-                    ["r", "l", "r", "r"],
-                    footer=course_footer,
-                ),
+        )
+        class_card = HtmlOutput.getInputCard(
+            "Lớp học phần",
+            len(class_rows),
+            HtmlOutput.getInputTable(
+                ["Mã lớp", "Môn học", "Số tiết/tuần"],
+                class_rows,
+                ["r", "l", "r"],
+                footer=class_footer,
             ),
-            HtmlOutput.getInputCard(
-                "Phòng học",
-                len(room_rows),
-                HtmlOutput.getInputTable(
-                    ["Mã", "Phòng học", "Sức chứa/tuần"],
-                    room_rows,
-                    ["r", "l", "r"],
-                ),
+        )
+        room_card = HtmlOutput.getInputCard(
+            "Phòng học",
+            len(room_rows),
+            HtmlOutput.getInputTable(
+                ["Mã", "Phòng học", "Sức chứa/tuần"],
+                room_rows,
+                ["r", "l", "r"],
             ),
-        ]
+        )
 
         summary_counts = (
-            f"{len(professor_rows)} giảng viên · {len(course_rows)} môn học · "
+            f"{len(professor_rows)} giảng viên · {len(class_rows)} lớp học phần · "
             f"{len(room_rows)} phòng"
         )
 
@@ -3106,14 +3906,40 @@ class HtmlOutput:
             '</div>'
             '</summary>'
             '<div class="input-body">'
-            f'<div class="input-grid">{"".join(cards)}</div>'
+            '<div class="result-tabs" role="tablist" '
+            'aria-label="Dữ liệu đầu vào">'
+            '<button class="result-tab" type="button" role="tab" '
+            'id="input-tab-professors" aria-controls="input-panel-professors" '
+            'aria-selected="true">Giảng viên</button>'
+            '<button class="result-tab" type="button" role="tab" '
+            'id="input-tab-classes" aria-controls="input-panel-classes" '
+            'aria-selected="false" tabindex="-1">Lớp học phần</button>'
+            '<button class="result-tab" type="button" role="tab" '
+            'id="input-tab-rooms" aria-controls="input-panel-rooms" '
+            'aria-selected="false" tabindex="-1">Phòng học</button>'
+            '</div>'
+            '<div class="result-panel" role="tabpanel" '
+            'id="input-panel-professors" aria-labelledby="input-tab-professors">'
+            f'{professor_card}'
+            '<div class="busy-grid-section">'
+            f'{HtmlOutput.getBusyGridsHtml(configuration)}'
+            '</div>'
+            '</div>'
+            '<div class="result-panel" role="tabpanel" '
+            'id="input-panel-classes" aria-labelledby="input-tab-classes" hidden>'
+            f'{class_card}'
+            '</div>'
+            '<div class="result-panel" role="tabpanel" '
+            'id="input-panel-rooms" aria-labelledby="input-tab-rooms" hidden>'
+            f'{room_card}'
+            '</div>'
             '</div>'
             '</details>'
         )
 
     @staticmethod
     def getSettingsSection(parameters=None):
-        """Khối điều khiển thông số; nút chạy lại nằm ngoài phần thu gọn."""
+        """Khối điều khiển thông số; nút Chạy nằm ngoài phần thu gọn."""
         values = normalize(parameters)
         fields = []
         for field in FIELDS:
@@ -3159,13 +3985,13 @@ class HtmlOutput:
             '<div class="settings-heading">'
             '<p class="section-kicker">Điều khiển</p>'
             '<h2 id="settings-title">Thông số thuật toán</h2>'
-            '<p class="settings-summary-note">{} · thay đổi áp dụng cho lần chạy lại</p>'
+            '<p class="settings-summary-note">{} · thay đổi áp dụng cho lần chạy mới</p>'
             '</div>'
             '<div class="settings-header-actions">'
             '<button class="rerun-button rerun-button--header" id="rerun-button" '
             'type="button" data-rerun '
-            'title="Chạy lại thuật toán với thông số hiện tại">'
-            '↻ Chạy lại</button>'
+            'title="Chạy thuật toán với thông số hiện tại">'
+            '▶ Chạy</button>'
             '<p class="settings-status" id="settings-status" '
             'data-rerun-status role="status" aria-live="polite"></p>'
             '</div>'
@@ -3173,8 +3999,8 @@ class HtmlOutput:
             '<details class="settings-details" open>'
             '<summary class="settings-toggle">Thông số chi tiết</summary>'
             '<div class="settings-body">'
-            '<p class="settings-note">Điều chỉnh thông số cho lần chạy kế tiếp, '
-            'sau đó bấm <strong>↻ Chạy lại</strong> ở phần đầu khối này.</p>'
+            '<p class="settings-note">Điều chỉnh thông số cho lần chạy tới, '
+            'sau đó bấm <strong>▶ Chạy</strong> ở phần đầu khối này.</p>'
             '<form id="ga-parameters" class="settings-form" autocomplete="off">'
             '<div class="settings-grid">{}</div>'
             '</form>'
@@ -3230,16 +4056,18 @@ class HtmlOutput:
             f'<span>{html.escape(label)}</span></li>'
             for letter, label in zip(HtmlOutput.CRITERIAS, HtmlOutput.CRITERIA_LABELS)
         )
+        soft_legend_html = HtmlOutput.getSoftLegendHtml(solution)
 
         generated_at = datetime.now().strftime("%H:%M · %d/%m/%Y")
         subtitle = (
             f"Kết quả xếp lịch cho {Constant.DAYS_NUM} ngày làm việc, "
-            f"mỗi ngày 2 buổi × {Constant.TEACHING_HOURS // 2} tiết "
-            f"(sáng {Constant.START_HOUR}:00–{Constant.START_HOUR + Constant.LUNCH_PERIOD}:00, "
-            f"chiều {Constant.START_HOUR + Constant.LUNCH_PERIOD + 1}:00–"
-            f"{Constant.START_HOUR + Constant.DAY_HOURS}:00). "
-            f"Khung {Constant.START_HOUR + Constant.LUNCH_PERIOD}:00–"
-            f"{Constant.START_HOUR + Constant.LUNCH_PERIOD + 1}:00 là giờ nghỉ trưa."
+            f"mỗi ngày 2 buổi × {Constant.TEACHING_HOURS // 2} tiết, "
+            f"mỗi tiết {Constant.PERIOD_MINUTES} phút, các tiết trong buổi liền nhau "
+            f"(sáng {Constant.formatHM(Constant.periodStart(0))}–"
+            f"{Constant.formatHM(Constant.periodStart(Constant.LUNCH_PERIOD - 1) + Constant.PERIOD_MINUTES)}, "
+            f"chiều {Constant.formatHM(Constant.periodStart(Constant.LUNCH_PERIOD + 1))}–"
+            f"{Constant.formatHM(Constant.periodStart(Constant.DAY_HOURS - 1) + Constant.PERIOD_MINUTES)}). "
+            f"Khung {Constant.lunchRange()} là giờ nghỉ trưa."
         )
         settings_html = HtmlOutput.getSettingsSection(parameters)
         input_html = HtmlOutput.getInputSection(solution)
@@ -3279,12 +4107,16 @@ class HtmlOutput:
             '<h2>Chú thích</h2>\n'
             '<p class="legend-note">'
             '<span class="legend-ok">Xanh</span> = đạt · '
-            '<span class="legend-bad">Đỏ</span> = vi phạm. '
+            '<span class="legend-bad">Đỏ</span> = vi phạm ràng buộc cứng · '
+            '<span class="legend-soft">Cam</span> = vi phạm ràng buộc mềm. '
+            f'Mỗi vi phạm cứng mất trọn {Criteria.hardPenalty:g} điểm, còn ràng buộc '
+            'mềm luôn phạt ít hơn nên thuật toán sửa P/G/N trước. '
             'Di chuột hoặc chạm vào ký hiệu để xem chi tiết. '
             'Các lớp trùng phòng được xếp chồng trong cùng một ô.'
             '</p>\n'
             '</div>\n'
             f'<ul class="legend-items">{legend_items}</ul>\n'
+            f'{soft_legend_html}\n'
             '</section>\n'
             f'{input_html}\n'
             '<section class="result-section" aria-labelledby="result-title">\n'

@@ -21,6 +21,8 @@ class Configuration:
         self._rooms = {}
         # các lớp học phần đã phân tích
         self._courseClasses = []
+        # tra cứu: ID môn -> danh sách giảng viên có khả năng giảng dạy môn đó
+        self._professorsByCourse = {}
 
     # Trả về giảng viên có ID được chỉ định
     # Nếu không có giảng viên nào với ID đó thì hàm trả về NULL
@@ -74,20 +76,38 @@ class Configuration:
 
     # Đọc dữ liệu giảng viên từ tệp cấu hình, tạo đối tượng và trả về
     # Trả về NULL nếu hàm không thể phân tích được dữ liệu cấu config
+    # Hỗ trợ: subjects (danh sách ID môn có khả năng giảng dạy),
+    #         busy (danh sách khung bận {day, start, end} với start/end là
+    #         chỉ số khung giờ 0-based, bao gồm cả hai đầu).
+    # Mỗi giảng viên tự chọn bao nhiêu khung bận tùy ý; khung được bung thành
+    # từng ô (day, time) và đó là dạng duy nhất bộ nhớ giữ lại.
     @staticmethod
     def __parseProfessor(dictConfig):
         id = 0
         name = ''
+        subjects = []
+        busy = []
 
         for key in dictConfig:
             if key == 'id':
                 id = dictConfig[key]
             elif key == 'name':
                 name = dictConfig[key]
+            elif key == 'subjects':
+                subjects = dictConfig[key] or []
+            elif key == 'busy':
+                for block in (dictConfig[key] or []):
+                    day = block.get('day')
+                    start = block.get('start', 0)
+                    end = block.get('end', start)
+                    if day is None:
+                        continue
+                    for t in range(int(start), int(end) + 1):
+                        busy.append((int(day), t))
 
         if id == 0 or name == '':
             return None
-        return Professor(id, name)
+        return Professor(id, name, subjects, busy)
 
     # Đọc dữ liệu môn học từ tệp cấu hình, tạo đối tượng và trả về con trỏ
     # Trả về None nếu hàm không thể phân tích được dữ liệu dictConfig
@@ -122,29 +142,26 @@ class Configuration:
 
     # Đọc dữ liệu lớp học phần từ tệp cấu hình, tạo đối tượng và trả về con trỏ
     # Trả về None nếu hàm không thể phân tích được dữ liệu cấu config
+    # Lớp học phần chỉ chứa môn học + số tiết; giảng viên do GA gán khi xếp lịch.
     def __parseCourseClass(self, dictConfig):
-        pid = 0
         cid = 0
-        dur = 1
+        dur = 3
 
         for key in dictConfig:
-            if key == 'professor':
-                pid = dictConfig[key]
-            elif key == 'course':
+            if key == 'course':
                 cid = dictConfig[key]
             elif key == 'duration':
                 dur = dictConfig[key]
 
-        # lấy giảng viên giảng lớp học phần và môn học mà lớp học phần này thuộc về
-        p = self.getProfessorById(pid)
+        # lấy môn học mà lớp học phần này thuộc về
         c = self.getCourseById(cid)
 
-        # giảng viên và môn học có tồn tại không
-        if not c or not p:
+        # môn học có tồn tại không
+        if not c:
             return None
 
-        # tạo đối tượng và trả về
-        return CourseClass(p, c, dur)
+        # tạo đối tượng và trả về (không còn giảng viên cài sẵn)
+        return CourseClass(c, dur)
 
     # phân tích tệp và lưu các đối tượng đã phân tích
     def parseFile(self, fileName):
@@ -176,4 +193,14 @@ class Configuration:
                     courseClass = self.__parseCourseClass(dictConfig[key])
                     self._courseClasses.append(courseClass)
 
+        # xây dựng tra cứu môn -> giảng viên có khả năng giảng dạy
+        self._professorsByCourse = {}
+        for professor in self._professors.values():
+            for courseId in professor.Subjects:
+                self._professorsByCourse.setdefault(courseId, []).append(professor)
+
         self._isEmpty = False
+
+    # Trả về danh sách giảng viên có khả năng giảng dạy môn học với ID cho trước
+    def getProfessorsByCourse(self, courseId):
+        return self._professorsByCourse.get(courseId, [])

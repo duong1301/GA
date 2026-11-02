@@ -12,16 +12,16 @@ for _s in (sys.stdout, sys.stderr):
 from model.Configuration import Configuration
 from model.Reservation import Reservation
 from model.Constant import Constant
+from model.Criteria import Criteria
 from algorithm.GeneticAlgorithm import GeneticAlgorithm
 
 DAYS = ("T2", "T3", "T4", "T5", "T6")
 PERIODS = [""] + [
-    f"Nghỉ trưa ({Constant.START_HOUR + period - 1}-"
-    f"{Constant.START_HOUR + period})"
-    if period - 1 == Constant.LUNCH_PERIOD
-    else f"Tiết {period} ({Constant.START_HOUR + period - 1}-"
-         f"{Constant.START_HOUR + period})"
-    for period in range(1, Constant.DAY_HOURS + 1)
+    "Nghỉ trưa ({})".format(Constant.lunchRange(sep="-"))
+    if offset == Constant.LUNCH_PERIOD
+    else "Tiết {} ({})".format(
+        Constant.periodNumber(offset), Constant.periodTimeRange(offset, sep="-"))
+    for offset in range(Constant.DAY_HOURS)
 ]
 
 config = Configuration()
@@ -59,22 +59,40 @@ for cc, idx in best.classes.items():
         if slot in room_occ[res.Room]:
             conf_room += 1
         room_occ[res.Room].add(slot)
-        if slot in prof_occ[cc.Professor.Id]:
+        prof = best.professors.get(cc)
+        profId = prof.Id if prof is not None else None
+        if slot in prof_occ[profId]:
             conf_prof += 1
-        prof_occ[cc.Professor.Id].add(slot)
+        prof_occ[profId].add(slot)
 
 print("\n--- Kiểm tra độc lập ---")
-print(f"  Trùng lịch phòng học     : {conf_room}")
-print(f"  Trùng lịch giảng viên    : {conf_prof}")
-print(f"  Xếp vào khung nghỉ trưa  : {conf_lunch}")
+print(f"  CỨNG - trùng phòng học     : {conf_room}")
+print(f"  CỨNG - trùng GV            : {conf_prof}")
+print(f"  CỨNG - khung nghỉ trưa     : {conf_lunch}")
+
+# Ràng buộc mềm: lớp xếp vào khung giờ bận của giảng viên (phạt nhẹ hơn ràng buộc cứng)
+busy_conflicts = 0
+for cc, idx in best.classes.items():
+    prof = best.professors.get(cc)
+    if prof is None or not prof.BusySlots:
+        continue
+    res = Reservation.parse(idx)
+    if any(prof.isBusyAt(res.Day, res.Time + j) for j in range(cc.Duration)):
+        busy_conflicts += 1
+
+print(f"  MỀM  - lớp dính khung GV bận: {busy_conflicts} "
+      f"(phạt ×{Criteria.busyPenalty:g}/lớp, cứng ×{Criteria.hardPenalty:g})")
+
 total_bad = conf_room + conf_prof + conf_lunch
-print(f"=> {'THỜI KHÓA BIỂU HOÀN TOÀN HỢP LỆ' if total_bad == 0 else f'CÒN {total_bad} LỖI'}")
+print(f"=> {'THỜI KHÓA BIỂU HỢP LỆ (ràng buộc cứng)' if total_bad == 0 else f'CÒN {total_bad} LỖI CỨNG'}")
 
 # --- In thời khóa biểu ---
 grid = defaultdict(dict)
 for cc, idx in best.classes.items():
     res = Reservation.parse(idx)
-    label = f"{cc.Course.Name} / {cc.Professor.Name}"
+    prof = best.professors.get(cc)
+    prof_name = prof.Name if prof is not None else "—"
+    label = f"{cc.Course.Name} / {prof_name}"
     grid[res.Room][(res.Day, res.Time)] = (cc.Duration, label)
 
 for room_id in range(config.numberOfRooms):

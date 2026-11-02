@@ -7,6 +7,7 @@ import time
 import traceback
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from types import SimpleNamespace
 from urllib.parse import quote, unquote, urlsplit
 
 # Ép mã hóa UTF-8 cho console, nếu không thì tiếng Việt sẽ lỗi trên Windows
@@ -42,6 +43,51 @@ def report_path_for(file_name):
 def write_report(report_path, html_result):
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(html_result, encoding="utf-8")
+
+
+def apply_busy_to_file(file_name, busy_payload):
+    """Áp dụng lịch bận do giảng viên chọn từ trang vào tệp cấu hình.
+
+    busy_payload: dict mapping profId (str|int) -> danh sách khung {day, start, end}.
+    Chỉ ghi đè những giảng viên có mặt trong payload: danh sách rỗng nghĩa là
+    giảng viên đó đã bỏ hết khung bận, còn việc thiếu khoá cho biết trang không
+    gửi dữ liệu của giảng viên đó nên giữ nguyên như cũ.
+    """
+    path = resolve_input_path(file_name)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    for entry in data:
+        if "prof" not in entry:
+            continue
+        pid = entry["prof"].get("id")
+        if not isinstance(busy_payload, dict):
+            continue
+        if str(pid) in busy_payload:
+            blocks = busy_payload[str(pid)]
+        elif pid in busy_payload:
+            blocks = busy_payload[pid]
+        else:
+            continue
+        clean_blocks = []
+        for b in (blocks or []):
+            if not isinstance(b, dict):
+                continue
+            day = b.get("day")
+            start = b.get("start", 0)
+            end = b.get("end", start)
+            if day is None:
+                continue
+            clean_blocks.append({
+                "day": int(day),
+                "start": int(start),
+                "end": int(end),
+            })
+        entry["prof"]["busy"] = clean_blocks
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent="\t", ensure_ascii=False)
+        f.write("\n")
 
 
 def run_schedule(file_name, parameters=None):
@@ -99,7 +145,7 @@ def run_schedule(file_name, parameters=None):
 
 
 class ReportRequestHandler(BaseHTTPRequestHandler):
-    """Phục vụ báo cáo HTML và nhận yêu cầu chạy lại từ nút trên trang."""
+    """Phục vụ báo cáo HTML và nhận yêu cầu chạy từ nút trên trang."""
 
     server_version = "GaScheduleReport/1.0"
     protocol_version = "HTTP/1.1"
@@ -207,6 +253,14 @@ class ReportRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        # Lịch bận do giảng viên chọn từ lưới trên trang. Trang chỉ gửi khoá
+        # "busy" khi nó thật sự có lưới, nên danh sách rỗng nghĩa là
+        # "đã bỏ hết khung bận" chứ không phải "trang cũ không gửi gì".
+        busy_payload = request_data.get("busy")
+        has_busy = isinstance(busy_payload, dict)
+        if not has_busy:
+            busy_payload = {}
+
         requested = request_data.get("parameters", {})
         if requested is None:
             requested = {}
@@ -232,7 +286,12 @@ class ReportRequestHandler(BaseHTTPRequestHandler):
         payload = None
         status = 200
         try:
-            print("\nĐang chạy lại thuật toán...", flush=True)
+            print("\nĐang chạy thuật toán...", flush=True)
+
+            # Áp dụng lịch bận do giảng viên chọn từ trang vào tệp cấu hình
+            if has_busy:
+                apply_busy_to_file(server.file_name, busy_payload)
+
             html_result, seconds, applied = run_schedule(
                 server.file_name,
                 parameters,
@@ -283,7 +342,7 @@ class ReportServer(ThreadingHTTPServer):
 
 
 def serve_report(report_path, file_name, html_result, parameters):
-    """Mở báo cáo qua localhost để nút Chạy lại có thể gọi lại thuật toán."""
+    """Mở báo cáo qua localhost để nút Chạy có thể chạy thuật toán mới."""
     server = ReportServer(
         ("127.0.0.1", 0),
         report_path,
@@ -295,7 +354,7 @@ def serve_report(report_path, file_name, html_result, parameters):
     url = "http://{}:{}/{}".format(host, port, quote(server.report_name, safe=""))
 
     print("Báo cáo đang chạy tại: {}".format(url))
-    print("Nút 'Chạy lại' và phần 'Thông số thuật toán' dùng tệp cấu hình hiện tại.")
+    print("Nút 'Chạy' và phần 'Thông số thuật toán' dùng tệp cấu hình hiện tại.")
     print("Nhấn Ctrl+C để dừng máy chủ.\n")
 
     try:
@@ -310,18 +369,35 @@ def serve_report(report_path, file_name, html_result, parameters):
 
 
 def main(file_name, serve=True):
-    html_result, seconds, parameters = run_schedule(file_name)
+    # Khởi tạo dữ liệu đầu vào và báo cáo tĩnh; không tự chạy thuật toán.
+    configuration = Configuration()
+    configuration.parseFile(resolve_input_path(file_name))
+    parameters = normalize_parameters(None, configuration.numberOfCourseClasses)
+    initial_solution = SimpleNamespace(
+        configuration=configuration,
+        classes={},
+        professors={},
+        criteria=None,
+        fitness=None,
+    )
+    html_result = HtmlOutput.getDocument(
+        initial_solution,
+        room_sections="",
+        professor_sections="",
+        history=[],
+        parameters=parameters,
+    )
     report_path = report_path_for(file_name)
     write_report(report_path, html_result)
 
-    print("\nHoàn thành trong {:.2f} giây.".format(seconds))
-    print("Báo cáo: {}\n".format(report_path))
+    print("\nBáo cáo: {}\n".format(report_path))
+    print("Nút '▶ Chạy' trên trang sẽ chạy thuật toán.")
 
     if serve:
         serve_report(report_path, file_name, html_result, parameters)
         return
 
-    print("Chế độ tĩnh: nút 'Chạy lại' cần ConsoleApp.py đang chạy.")
+    print("Chế độ tĩnh: nút 'Chạy' cần ConsoleApp.py đang chạy.")
     try:
         webbrowser.open(report_path.as_uri())
     except Exception:

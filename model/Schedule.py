@@ -30,14 +30,27 @@ class Schedule:
         # Dùng để xác định ô thời gian - không gian đầu tiên mà lớp học phần sử dụng
         self._classes = {}
 
+        # Bảng gán giảng viên của nhiễm sắc thể: lớp học phần -> giảng viên.
+        # Giảng viên do GA tự gán khi tiến hoá (không còn cài sẵn trong dữ liệu).
+        self._professors = {}
+
         # Các cờ đánh dấu sự thỏa mãn các yêu cầu của lớp học phần
         self._criteria = np.zeros(self._configuration.numberOfCourseClasses * len(Criteria.weights), dtype=bool)
+
+    # Chọn ngẫu nhiên một giảng viên có khả năng giảng dạy môn của lớp học phần
+    def _randomProfessorFor(self, cc):
+        capable = self._configuration.getProfessorsByCourse(cc.Course.Id)
+        if not capable:
+            return None
+        return capable[randrange(len(capable))]
 
     def copy(self, c, setup_only):
         if not setup_only:
             self._configuration = c.configuration
             # sao chép mã
             self._slots, self._classes = [row[:] for row in c.slots], {key: value for key, value in c.classes.items()}
+            # sao chép bảng gán giảng viên
+            self._professors = {key: value for key, value in c.professors.items()}
 
             # sao chép các cờ yêu cầu của lớp học phần và giá trị độ phù hợp
             self._criteria = c.criteria[:]
@@ -51,6 +64,7 @@ class Schedule:
         # tạo nhiễm sắc thể mới, sao chép thiết lập của nhiễm sắc thể
         new_chromosome = self.copy(self, True)
         new_chromosome_slots, new_chromosome_classes = new_chromosome._slots, new_chromosome._classes
+        new_chromosome_professors = new_chromosome._professors
 
         # đặt các lớp học phần vào vị trí ngẫu nhiên
         classes = self._configuration.courseClasses
@@ -78,6 +92,9 @@ class Schedule:
             # chèn vào bảng lớp học phần của nhiễm sắc thể
             new_chromosome_classes[c] = reservation_index
 
+            # gán ngẫu nhiên một giảng viên có khả năng giảng dạy môn này
+            new_chromosome_professors[c] = new_chromosome._randomProfessorFor(c)
+
         new_chromosome.calculateFitness()
         return new_chromosome
         
@@ -91,11 +108,13 @@ class Schedule:
         # đối tượng nhiễm sắc thể mới, sao chép thiết lập của nhiễm sắc thể
         n = self.copy(self, True)
         n_classes, n_slots = n._classes, n._slots
+        n_professors = n._professors
 
         classes = self._classes
         course_classes = tuple(classes.keys())
         parent_classes = parent.classes
         parent_course_classes = tuple(parent.classes.keys())
+        parent_professors = parent.professors
 
         # số lớp học phần
         size = len(classes)
@@ -120,6 +139,8 @@ class Schedule:
                 reservation_index = classes[course_class]
                 # chèn lớp học phần từ cha mẹ thứ nhất vào bảng lớp học phần của nhiễm sắc thể mới
                 n_classes[course_class] = reservation_index
+                # thừa hưởng gán giảng viên từ cha mẹ thứ nhất
+                n_professors[course_class] = self._professors.get(course_class)
                 # sao chép toàn bộ các ô thời gian - không gian của lớp học phần
                 for j in range(dur - 1, -1, -1):
                     n_slots[reservation_index + j].append(course_class)
@@ -129,6 +150,8 @@ class Schedule:
                 reservation_index = parent_classes[course_class]
                 # chèn lớp học phần từ cha mẹ thứ hai vào bảng lớp học phần của nhiễm sắc thể mới
                 n_classes[course_class] = reservation_index
+                # thừa hưởng gán giảng viên từ cha mẹ thứ hai
+                n_professors[course_class] = parent_professors.get(course_class)
                 # sao chép toàn bộ các ô thời gian - không gian của lớp học phần
                 for j in range(dur - 1, -1, -1):
                     n_slots[reservation_index + j].append(course_class)
@@ -195,6 +218,9 @@ class Schedule:
 
             self.repair(cc1, reservation1_index, None)
 
+            # đột biến gán giảng viên: gán lại ngẫu nhiên một giảng viên phù hợp
+            self._professors[cc1] = self._randomProfessorFor(cc1)
+
         self.calculateFitness()
 
     # Tính giá trị độ phù hợp của nhiễm sắc thể
@@ -204,6 +230,7 @@ class Schedule:
 
         criteria, configuration = self._criteria, self._configuration
         items, slots = self._classes.items(), self._slots
+        professors = self._professors
         numberOfRooms = configuration.numberOfRooms
         DAY_HOURS, DAYS_NUM = Constant.DAY_HOURS, Constant.DAYS_NUM
         daySize = DAY_HOURS * numberOfRooms
@@ -226,7 +253,7 @@ class Schedule:
 
             # kiểm tra sự trùng lặp giữa các lớp học phần về giảng viên
             timeId = day * daySize + time
-            po = Criteria.isOverlappedProf(slots, cc, numberOfRooms, timeId)
+            po = Criteria.isOverlappedProf(slots, cc, numberOfRooms, timeId, professors)
 
             # các giảng viên không có lớp học phần nào trùng lịch?
             criteria[ci + 1] = not po
@@ -247,24 +274,46 @@ class Schedule:
             ci += len(Criteria.weights)
 
         # ==================== RÀNG BUỘC MỀM (SOFT CONSTRAINTS) ====================
-        # Các ràng buộc mềm không bắt buộc phải đạt (ví dụ: giảng viên dạy
-        # quá nhiều tiết trong ngày).
-        # Mỗi vi phạm sẽ trừ đi một phần nhỏ điểm số (Criteria.softPenalty).
+        # Các ràng buộc mềm không bắt buộc phải đạt; mỗi vi phạm trừ một phần
+        # điểm số để thuật toán GA dần tối ưu.
 
-        # tổng số tiết học của giảng viên theo từng ngày
-        hoursPerProfDay = {}
-
-        for cc, reservation_index in items:
-            reservation = Reservation.parse(reservation_index)
-            day = reservation.Day
-
-            profId = cc.Professor.Id
-            hoursPerProfDay[(profId, day)] = hoursPerProfDay.get((profId, day), 0) + cc.Duration
-
+        # --- 1) Tránh khung giờ bận cố định của giảng viên ---
+        # Mỗi lớp bị xếp vào ô bận của giảng viên sẽ bị phạt.
         softPenalty = 0.0
-        for (profId, day), hours in hoursPerProfDay.items():
-            if Criteria.isProfessorDailyOverloaded(hoursPerProfDay, profId, day):
-                softPenalty += Criteria.softPenalty
+        for cc, reservation_index in items:
+            prof = professors.get(cc)
+            if prof is None or not prof.BusySlots:
+                continue
+            reservation = Reservation.parse(reservation_index)
+            day, time, dur = reservation.Day, reservation.Time, cc.Duration
+            for off in range(dur):
+                if prof.isBusyAt(day, time + off):
+                    softPenalty += Criteria.busyPenalty
+                    break  # chỉ phạt một lần cho mỗi lớp bị trùng khung bận
+
+        # --- 2) Mức phù hợp với lịch khả dụng của giảng viên ---
+        # Với từng giảng viên, tính tỉ lệ số tiết được xếp vào giờ GV rảnh:
+        #   fit = so_tiet_ranh / tong_so_tiet.
+        # fit càng cao (xếp đúng vào giờ rảnh, tránh khung bận) thì càng ít phạt,
+        # do đó càng phù hợp với lịch khả dụng thì càng được nhiều điểm.
+        availPerProf = {}  # profId -> [so_tiet_ranh, tong_so_tiet]
+        for cc, reservation_index in items:
+            prof = professors.get(cc)
+            if prof is None:
+                continue
+            reservation = Reservation.parse(reservation_index)
+            day, time, dur = reservation.Day, reservation.Time, cc.Duration
+            counters = availPerProf.setdefault(prof.Id, [0, 0])
+            for off in range(dur):
+                counters[1] += 1
+                if prof.isAvailableAt(day, time + off):
+                    counters[0] += 1
+
+        total_available = sum(v[0] for v in availPerProf.values())
+        total_all = sum(v[1] for v in availPerProf.values())
+        if total_all > 0:
+            fit = total_available / total_all
+            softPenalty += Criteria.availabilityWeight * (1.0 - fit)
 
         score -= softPenalty
 
@@ -284,6 +333,11 @@ class Schedule:
     # Trả về tham chiếu tới bảng lớp học phần
     def classes(self):
         return self._classes
+
+    @property
+    # Trả về bảng gán giảng viên của nhiễm sắc thể (lớp học phần -> giảng viên)
+    def professors(self):
+        return self._professors
 
     @property
     # Trả về mảng các cờ đánh dấu sự thỏa mãn yêu cầu của lớp học phần
