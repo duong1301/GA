@@ -35,14 +35,9 @@ class HtmlOutput:
         "Lớp bị xếp vào khung nghỉ trưa 12h-13h",
     )
 
-    # Ký hiệu + nhãn của các RÀNG BUỘC MỀM (soft constraints) tối ưu lịch giảng dạy.
-    #   B = Bận (tránh khung giờ bận của GV)      [busyPenalty]
-    #   A = Khả dụng (phù hợp lịch GV rảnh)       [availabilityWeight]
-    SOFT_CRITERIAS = ('B', 'A')
-    SOFT_LABELS = (
-        "Tránh khung giờ bận của giảng viên",
-        "Phù hợp lịch khả dụng (xếp vào giờ GV rảnh)",
-    )
+    # Ký hiệu + nhãn của RÀNG BUỘC MỀM tối ưu lịch giảng dạy.
+    SOFT_CRITERIAS = ('B',)
+    SOFT_LABELS = ("Tránh khung giờ bận của giảng viên",)
     PERIODS = ("",) + tuple(
         "Nghỉ trưa" if offset == Constant.LUNCH_PERIOD
         else f"Tiết {Constant.periodNumber(offset)}"
@@ -3515,17 +3510,10 @@ class HtmlOutput:
 
     @staticmethod
     def getSoftMetrics(solution):
-        """Tính các số đo của ràng buộc mềm cho một lời giải.
-
-        Trả về dict: 'B' = số lớp rơi vào khung bận, 'A' = tỉ lệ xếp đúng giờ
-        rảnh (0..1).
-        """
+        """Trả về số lớp có ít nhất một tiết rơi vào khung giảng viên bận."""
         classes = getattr(solution, "classes", None) or {}
         professors = getattr(solution, "professors", None) or {}
-
-        busy_violations = 0          # B
-        available_periods = 0
-        total_periods = 0
+        busy_violations = 0
 
         for cc, reservation_index in classes.items():
             prof = professors.get(cc)
@@ -3533,25 +3521,10 @@ class HtmlOutput:
                 continue
             reservation = Reservation.parse(reservation_index)
             day, time, dur = reservation.Day, reservation.Time, cc.Duration
-
-            # B: đếm lớp có ít nhất một tiết rơi vào khung bận
-            in_busy = False
-            for off in range(dur):
-                total_periods += 1
-                if prof.isBusyAt(day, time + off):
-                    in_busy = True
-                else:
-                    available_periods += 1
-            if in_busy:
+            if any(prof.isBusyAt(day, time + off) for off in range(dur)):
                 busy_violations += 1
 
-        # A: tỉ lệ số tiết xếp vào giờ giảng viên rảnh
-        availability_fit = (available_periods / total_periods) if total_periods else 1.0
-
-        return {
-            'B': busy_violations,
-            'A': availability_fit,
-        }
+        return {'B': busy_violations}
 
     @staticmethod
     def getSoftLegendHtml(solution):
@@ -3561,17 +3534,12 @@ class HtmlOutput:
         has_solution = bool(classes)
 
         # trọng số của từng ràng buộc mềm (để người dùng thấy mức phạt)
-        weights = {
-            'B': Criteria.busyPenalty,
-            'A': Criteria.availabilityWeight,
-        }
+        weights = {'B': Criteria.busyPenalty}
 
         def fmt(letter):
             if not has_solution:
                 return "—"
             value = metrics.get(letter, 0)
-            if letter == 'A':
-                return f"{value * 100:.1f}% giờ rảnh"
             return f"{value} lớp dính bận"
 
         items = "".join(
@@ -3592,7 +3560,7 @@ class HtmlOutput:
             f'{Criteria.hardPenalty:g} điểm, trong khi một vi phạm cứng mất trọn '
             f'{Criteria.hardPenalty:g} điểm. Thuật toán vì thế sửa P/G/N trước, '
             'rồi mới tối ưu giờ rảnh của giảng viên. '
-            'B = bận · A = khả dụng.</p>'
+            'B = bận.</p>'
             '</div>'
             f'<ul class="legend-items">{items}</ul>'
         )

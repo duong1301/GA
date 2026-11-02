@@ -155,7 +155,6 @@ một vi phạm cứng**, để thuật toán bao giờ cũng ưu tiên sửa P/
 | Mã | Tiêu chí (mềm) | Cách tính | Trọng số phạt |
 |---|---|---|---|
 | `B` | Không xếp lớp vào khung giờ giảng viên bận | theo từng lớp dính bận | 0.2 |
-| `A` | Lịch dạy phù hợp giờ rảnh của giảng viên | toàn cục, tối đa khi 100% tiết rơi vào giờ bận | 0.4 |
 
 Fitness = `(điểm cứng − tổng phạt mềm) / (số lớp × 3)`. Vì mỗi phạt mềm đều dưới 1.0,
 một vi phạm mềm không bao giờ đắt bằng một vi phạm cứng.

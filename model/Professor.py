@@ -22,10 +22,6 @@ class Professor:
     def isBusyAt(self, day, time):
         return (day, time) in self.BusySlots
 
-    # Kiểm tra ô (ngày, tiết) có nằm trong giờ giảng viên RẢI (không bận) không
-    def isAvailableAt(self, day, time):
-        return (day, time) not in self.BusySlots
-
     def __hash__(self):
         return hash(self.Id)
 

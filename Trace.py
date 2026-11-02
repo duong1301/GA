@@ -359,18 +359,15 @@ class Trace:
                    Table.CHECK if ok == total else Table.CROSS])
         t.show()
 
-        # Bảng RÀNG BUỘC MỀM (ký hiệu B/A) tối ưu lịch giảng dạy.
+        # Bảng RÀNG BUỘC MỀM (ký hiệu B) tối ưu lịch giảng dạy.
         Trace.softCriteria(best)
 
     @staticmethod
     def softCriteria(solution):
-        """In bảng tóm tắt các ràng buộc mềm kèm ký hiệu B/A và trọng số."""
+        """In bảng tóm tắt ràng buộc mềm B và trọng số."""
         classes = getattr(solution, "classes", None) or {}
         professors = getattr(solution, "professors", None) or {}
-
         busy_violations = 0
-        available_periods = 0
-        total_periods = 0
 
         for cc, reservation_index in classes.items():
             prof = professors.get(cc)
@@ -378,30 +375,14 @@ class Trace:
                 continue
             reservation = Reservation.parse(reservation_index)
             day, time, dur = reservation.Day, reservation.Time, cc.Duration
-
-            in_busy = False
-            for off in range(dur):
-                total_periods += 1
-                if prof.isBusyAt(day, time + off):
-                    in_busy = True
-                else:
-                    available_periods += 1
-            if in_busy:
+            if any(prof.isBusyAt(day, time + off) for off in range(dur)):
                 busy_violations += 1
-
-        fit = (available_periods / total_periods) if total_periods else 1.0
-
-        rows = [
-            ("B", "Tránh khung giờ bận của GV",
-             "{} lớp dính bận".format(busy_violations), Criteria.busyPenalty),
-            ("A", "Phù hợp lịch khả dụng (giờ rảnh)",
-             "{:.1%} giờ rảnh".format(fit), Criteria.availabilityWeight),
-        ]
 
         t = Table(["Mã", "Ràng buộc mềm", "Giá trị", "Phạt"], ["c", "l", "r", "r"])
         t.indent = "    "
-        for code, label, value, weight in rows:
-            t.add([code, label, value, "×{:g}".format(weight)])
+        t.add(["B", "Tránh khung giờ bận của GV",
+               "{} lớp dính bận".format(busy_violations),
+               "×{:g}".format(Criteria.busyPenalty)])
         t.show()
 
     @staticmethod

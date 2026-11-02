@@ -291,30 +291,6 @@ class Schedule:
                     softPenalty += Criteria.busyPenalty
                     break  # chỉ phạt một lần cho mỗi lớp bị trùng khung bận
 
-        # --- 2) Mức phù hợp với lịch khả dụng của giảng viên ---
-        # Với từng giảng viên, tính tỉ lệ số tiết được xếp vào giờ GV rảnh:
-        #   fit = so_tiet_ranh / tong_so_tiet.
-        # fit càng cao (xếp đúng vào giờ rảnh, tránh khung bận) thì càng ít phạt,
-        # do đó càng phù hợp với lịch khả dụng thì càng được nhiều điểm.
-        availPerProf = {}  # profId -> [so_tiet_ranh, tong_so_tiet]
-        for cc, reservation_index in items:
-            prof = professors.get(cc)
-            if prof is None:
-                continue
-            reservation = Reservation.parse(reservation_index)
-            day, time, dur = reservation.Day, reservation.Time, cc.Duration
-            counters = availPerProf.setdefault(prof.Id, [0, 0])
-            for off in range(dur):
-                counters[1] += 1
-                if prof.isAvailableAt(day, time + off):
-                    counters[0] += 1
-
-        total_available = sum(v[0] for v in availPerProf.values())
-        total_all = sum(v[1] for v in availPerProf.values())
-        if total_all > 0:
-            fit = total_available / total_all
-            softPenalty += Criteria.availabilityWeight * (1.0 - fit)
-
         score -= softPenalty
 
         # tính giá trị độ phù hợp dựa trên điểm số

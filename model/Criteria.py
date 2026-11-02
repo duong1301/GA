@@ -59,14 +59,8 @@ class Criteria:
     # Quy tắc: mọi trọng số mềm phải NHỎ HƠN hardPenalty (1.0), để một vi
     # phạm mềm không bao giờ đắt bằng một vi phạm cứng. GA vì thế luôn ưu
     # tiên sửa P/G/N trước, rồi mới tối ưu sự thoải mái của giảng viên.
-    # B tính theo từng vi phạm; A là đại lượng toàn cục có giá trị gốc đã
-    # chặn ở 1.0, nên tổng phạt của nó không vượt quá trọng số.
+    # B tính theo từng vi phạm.
     # ------------------------------------------------------------------
 
     # Trọng số phạt cho mỗi lớp bị xếp vào khung giờ bận của giảng viên (B).
     busyPenalty = 0.2
-
-    # Trọng số cho điểm "phù hợp lịch khả dụng" của giảng viên (A).
-    # Với từng giảng viên: fit = (số tiết xếp vào giờ GV rảnh) / (tổng số tiết GV dạy).
-    # Phạt tối đa availabilityWeight điểm khi toàn bộ tiết đều rơi vào giờ bận.
-    availabilityWeight = 0.4
