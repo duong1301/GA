@@ -161,13 +161,12 @@ Fitness = `(điểm cứng − tổng phạt mềm) / (số lớp × 3)`. Vì m�
 một vi phạm mềm không bao giờ đắt bằng một vi phạm cứng.
 
 Trên báo cáo HTML, ô lớp bị xếp vào khung giảng viên bận tô **cam** kèm nhãn
-`GV bận · tiết 3-4, 7` (ràng buộc mềm); rê chuột vào nhãn để thấy khung giờ tương
-ứng (VD `9:50–11:40, 13:00–13:50`). Ô trống có sọc cam trong lịch của một giảng viên
-là dải tiết giảng viên đó báo bận; các tiết bận liền kề **gộp thành một ô duy nhất**
-có nhãn `tiết 5-6` để đọc như một khối liền mạch, thay vì mỗi tiết một ô rời rạc.
-Một lớp cũng chỉ bị cắt ô ở chỗ chuyển từ tiết rảnh sang tiết bận, nên lớp nằm trọn
-trong dải bận hiển thị một nhãn `GV bận · tiết 8-11`. Phân biệt với **đỏ** của ràng
-buộc cứng; mỗi giảng viên có badge số lớp dính bận ở đầu bảng lịch.
+`GV bận · tiết 3` (ràng buộc mềm); rê chuột vào nhãn để thấy khung giờ tương ứng
+(VD `8:40–9:30`). Mỗi tiết là **một ô riêng, không gộp `rowspan`**: tiết đầu của lớp
+hiện đầy đủ môn học, giảng viên, phòng; các tiết sau hiện thẻ **Tiếp tiết**. Ô trống
+có sọc cam trong lịch của một giảng viên là tiết giảng viên đó báo bận. Phân biệt
+với **đỏ** của ràng buộc cứng; mỗi giảng viên có badge số lớp dính bận ở đầu bảng
+lịch. Giao diện không dùng hiệu ứng `:hover`, mọi trạng thái đều hiển thị sẵn.
 
 Số tiết bận lấy từ `BusySlots` (tập hợp `(ngày, chỉ số khung giờ)` đã được
 `Configuration` bung từ các khối `busy` trong tệp JSON), nên cột **Lịch bận** và lưới

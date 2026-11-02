@@ -20,6 +20,46 @@
 					"day": 0,
 					"start": 7,
 					"end": 12
+				},
+				{
+					"day": 1,
+					"start": 0,
+					"end": 5
+				},
+				{
+					"day": 1,
+					"start": 7,
+					"end": 12
+				},
+				{
+					"day": 2,
+					"start": 0,
+					"end": 5
+				},
+				{
+					"day": 2,
+					"start": 7,
+					"end": 12
+				},
+				{
+					"day": 3,
+					"start": 0,
+					"end": 5
+				},
+				{
+					"day": 3,
+					"start": 7,
+					"end": 12
+				},
+				{
+					"day": 4,
+					"start": 0,
+					"end": 5
+				},
+				{
+					"day": 4,
+					"start": 7,
+					"end": 12
 				}
 			]
 		}

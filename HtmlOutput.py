@@ -180,11 +180,6 @@ class HtmlOutput:
             transition: background .15s ease, transform .15s ease, opacity .15s ease;
         }
 
-        .rerun-button:hover {
-            background: #eff6ff;
-            transform: translateY(-1px);
-        }
-
         .rerun-button:focus-visible {
             outline: 3px solid rgba(191, 219, 254, .9);
             outline-offset: 3px;
@@ -698,17 +693,7 @@ class HtmlOutput:
                 var(--soft-fill) 7px, var(--soft-fill) 14px);
         }
 
-        /* Nhãn đặt trong dải bận liền mạch ("tiết 3-8") */
-        .schedule td.empty.busy .busy-band {
-            display: block;
-            padding: 2px 4px;
-            color: var(--soft);
-            font-size: .68rem;
-            font-weight: 700;
-            line-height: 1.3;
-        }
-
-        .schedule tbody tr:nth-child(even) td.empty { background: #fbfcfe; }
+        .schedule tbody tr:nth-child(even) td.empty:not(.busy) { background: #fbfcfe; }
 
         /* Hàng khung giờ nghỉ trưa 12h-13h */
         .schedule tbody tr.lunch > .period .period-name {
@@ -736,10 +721,6 @@ class HtmlOutput:
             background: var(--soft-bg);
             box-shadow: inset 0 0 0 2px var(--soft-border);
         }
-
-        .schedule tbody tr:hover td.filled { background: #f8fbff; }
-        .schedule tbody tr:hover td.filled.busy-soft { background: var(--soft-fill); }
-        .schedule tbody tr:hover td.empty { background: #f8fafc; }
 
         .course {
             color: var(--text);
@@ -955,10 +936,6 @@ class HtmlOutput:
                         box-shadow .15s ease;
         }
 
-        .result-tab:hover {
-            color: var(--brand);
-        }
-
         .result-tab[aria-selected="true"] {
             background: var(--surface);
             color: var(--brand);
@@ -1010,7 +987,6 @@ class HtmlOutput:
 
         .input-summary::-webkit-details-marker { display: none; }
         .input-summary::marker { content: ""; }
-        .input-summary:hover { background: #f8fbff; }
 
         .input-summary::after {
             content: "▾";
@@ -1088,10 +1064,6 @@ class HtmlOutput:
             box-shadow: 0 8px 18px rgba(29, 78, 216, .18);
         }
 
-        .rerun-button--header:hover {
-            background: #1e40af;
-        }
-
         .settings-details {
             border-top: 1px solid var(--border);
         }
@@ -1112,7 +1084,6 @@ class HtmlOutput:
 
         .settings-toggle::-webkit-details-marker { display: none; }
         .settings-toggle::marker { content: ""; }
-        .settings-toggle:hover { background: #f1f5f9; }
 
         .settings-toggle::after {
             content: "▾";
@@ -1292,10 +1263,6 @@ class HtmlOutput:
             letter-spacing: .045em;
             text-transform: uppercase;
             white-space: nowrap;
-        }
-
-        .input-table tbody tr:hover {
-            background: #f8fbff;
         }
 
         .input-table tfoot td {
@@ -1542,8 +1509,6 @@ class HtmlOutput:
             background-clip: content-box;
         }
 
-        .step-grid-wrap::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
         .step-grid-wrap::-webkit-scrollbar-track { background: transparent; }
 
         /* Lưới các thế hệ: mỗi hàng 10 ô, mỗi ô là một thế hệ. */
@@ -1568,11 +1533,6 @@ class HtmlOutput:
             box-shadow: var(--shadow-sm);
             transition: border-color .15s ease, box-shadow .15s ease,
                         transform .15s ease, background .15s ease;
-        }
-
-        .step-cell:hover {
-            border-color: #bfdbfe;
-            transform: translateY(-1px);
         }
 
         .step-cell:focus-visible {
@@ -2007,8 +1967,10 @@ class HtmlOutput:
                     const profId = gridEl.getAttribute("data-prof");
                     const slots = [];
                     gridEl.querySelectorAll(".busy-row").forEach(rowEl => {
-                        const dayNum = Number(rowEl.getAttribute("data-day"));
-                        if (Number.isNaN(dayNum)) return;
+                        const dayAttr = rowEl.getAttribute("data-day");
+                        if (dayAttr === null) return;
+                        const dayNum = Number(dayAttr);
+                        if (!Number.isInteger(dayNum)) return;
                         rowEl.querySelectorAll(".busy-cell").forEach(cellEl => {
                             const time = Number(cellEl.getAttribute("data-time"));
                             const busy = cellEl.classList.contains("is-busy");
@@ -2292,16 +2254,11 @@ class HtmlOutput:
 
             const roomTable = (roomId, slots, overlaps) => {
                 const roomName = data.rooms[roomId];
-                const covered = {};
                 let rows = "";
 
                 for (let periodId = 1; periodId < data.rows; periodId++) {
                     let cellsHtml = "";
                     for (let dayId = 1; dayId < data.cols; dayId++) {
-                        const dayCovered =
-                            covered[dayId] || (covered[dayId] = new Set());
-                        if (dayCovered.has(periodId)) continue;
-
                         const bucket = slots.get(roomId + "|" + dayId) || {};
                         const entries = bucket[periodId] || [];
                         if (!entries.length) {
@@ -2312,56 +2269,17 @@ class HtmlOutput:
                         const hasOverlap = overlaps.has(roomId + "|" + dayId);
                         if (!hasOverlap && entries.length === 1) {
                             const entry = entries[0];
-                            if (entry.start === periodId) {
-                                let span = Math.min(
-                                    entry.course.dur,
-                                    data.rows - periodId
-                                );
-                                // Chỉ cắt rowspan ở chỗ chuyển từ tiết rảnh sang
-                                // tiết bận: lớp nằm trọn trong một dải bận thành
-                                // một ô duy nhất với nhãn gọn thay vì rời rạc.
-                                let cut = 0;
-                                let wasBusy = entry.busyPeriods.includes(periodId);
-                                for (let pid = periodId + 1; pid < periodId + span; pid++) {
-                                    const isBusy = entry.busyPeriods.includes(pid);
-                                    if (isBusy && !wasBusy) {
-                                        cut = pid;
-                                        break;
-                                    }
-                                    wasBusy = isBusy;
-                                }
-                                if (cut) {
-                                    span = Math.min(span, cut - periodId);
-                                }
-                                const cellBusyPeriods = entry.busyPeriods.filter(
-                                    period => period >= periodId &&
-                                             period < periodId + span
-                                );
-                                cellsHtml += '<td class="slot filled' +
-                                    (cellBusyPeriods.length ? " busy-soft" : "") + '"' +
-                                    (span > 1 ? ' rowspan="' + span + '"' : "") +
-                                    '>' + (cellBusyPeriods.length
-                                        ? busyChip(cellBusyPeriods) : "") +
-                                    '<div class="course-card">' +
-                                    courseCard(
-                                        entry.course, entry.prof, entry.bits,
-                                        entry.offset, false, entry.busyPeriods.length > 0
-                                    ) +
-                                    "</div></td>";
-                                for (let step = 1; step < span; step++) {
-                                    dayCovered.add(periodId + step);
-                                }
-                            } else {
-                                cellsHtml += '<td class="slot filled' +
-                                    (entry.busy ? " busy-soft" : "") + '">' +
-                                    (entry.busy ? busyChip([periodId]) : "") +
-                                    '<div class="course-card continued">' +
-                                    courseCard(
-                                        entry.course, entry.prof, entry.bits,
-                                        entry.offset, true, entry.busy
-                                    ) +
-                                    "</div></td>";
-                            }
+                            const first = entry.start === periodId;
+                            cellsHtml += '<td class="slot filled' +
+                                (entry.busy ? " busy-soft" : "") + '">' +
+                                (entry.busy ? busyChip([periodId]) : "") +
+                                '<div class="course-card' +
+                                (first ? "" : " continued") + '">' +
+                                courseCard(
+                                    entry.course, entry.prof, entry.bits,
+                                    entry.offset, !first, entry.busy
+                                ) +
+                                "</div></td>";
                             continue;
                         }
 
@@ -2677,24 +2595,14 @@ class HtmlOutput:
         )
 
     @staticmethod
-    def getHtmlCell(content, rowspan, busy=False, soft=False, title="", band_label=""):
+    def getHtmlCell(content, busy=False, soft=False, title=""):
         if content is None:
             if not busy:
                 return '<td class="slot empty"></td>'
-            span = (
-                ' rowspan="{}"'.format(int(rowspan))
-                if rowspan and rowspan > 1 else ""
-            )
-            band = (
-                '<span class="busy-band">{}</span>'.format(html.escape(band_label))
-                if band_label else ""
-            )
-            return ('<td class="slot empty busy"{} title="{}">{}</td>'.format(
-                span, html.escape(title), band))
+            return '<td class="slot empty busy" title="{}"></td>'.format(
+                html.escape(title))
 
         cls = "slot filled" + (" busy-soft" if soft else "")
-        if rowspan and rowspan > 1:
-            return f'<td class="{cls}" rowspan="{int(rowspan)}">{content}</td>'
         return f'<td class="{cls}">{content}</td>'
 
     @staticmethod
@@ -2703,101 +2611,34 @@ class HtmlOutput:
                          busy_slots=None):
         """Dựng bảng lịch theo ngày (gồm cả khung nghỉ trưa) cho khóa/phòng/GV."""
         rows = []
-        covered = {
-            dayId: set()
-            for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER)
-        }
-        # Số thứ tự tiết (1-based) mà giảng viên báo bận trong từng ngày, dùng để
-        # gộp các ô bận liền mạch thành một dải duy nhất.
-        day_busy = {
-            dayId: {
-                offset + 1 for (busyDay, offset) in (busy_slots or ())
-                if busyDay == dayId - 1 and offset != Constant.LUNCH_PERIOD
-            }
-            for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER)
-        }
+        busy_slots = busy_slots or set()
 
         for periodId in range(1, HtmlOutput.ROOM_ROW_NUMBER):
             cells = []
             for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER):
-                if periodId in covered[dayId]:
-                    # Ô đã được phủ bởi rowspan của lớp học ở tiết phía trên.
-                    continue
-
                 day_entries = entries_by_slot.get((key, dayId), {})
                 slot_entries = day_entries.get(periodId, [])
                 if not slot_entries:
-                    if periodId not in day_busy[dayId]:
-                        cells.append('<td class="slot empty"></td>')
-                        continue
-
-                    # Gom suốt dải bận còn trống phía dưới thành một ô sọc
-                    # duy nhất, dán nhãn "tiết 3-8" để lịch bận đọc liền mạch.
-                    band = [periodId]
-                    pid = periodId + 1
-                    while (pid in day_busy[dayId]
-                           and pid < HtmlOutput.ROOM_ROW_NUMBER
-                           and pid not in covered[dayId]
-                           and not day_entries.get(pid)):
-                        band.append(pid)
-                        pid += 1
-                    covered[dayId].update(band[1:])
-
-                    runs = HtmlOutput.splitBusyRuns(period - 1 for period in band)
-                    label = HtmlOutput.formatBusyRuns(runs)
-                    times = HtmlOutput.formatBusyRunTimes(runs)
+                    offset = periodId - 1
+                    is_busy = (dayId - 1, offset) in busy_slots
                     cells.append(HtmlOutput.getHtmlCell(
-                        None, len(band), busy=True,
-                        title="Giảng viên bận · {} ({})".format(label, times),
-                        band_label=label))
+                        None, busy=is_busy,
+                        title="Giảng viên bận · tiết {} ({})".format(
+                            Constant.periodNumber(offset),
+                            Constant.periodTimeRange(offset, sep="-"))))
                     continue
 
                 has_overlap = (key, dayId) in overlapping_slots
                 if not has_overlap and len(slot_entries) == 1:
                     entry = slot_entries[0]
-                    busy_set = set(entry.get("busy_periods") or ())
+                    is_busy = periodId in set(entry.get("busy_periods") or ())
+                    chip = HtmlOutput.getBusyChip([periodId]) if is_busy else ""
                     if entry["start"] == periodId:
-                        span = min(
-                            entry["duration"],
-                            HtmlOutput.ROOM_ROW_NUMBER - periodId,
-                        )
-                        # Chỉ cắt rowspan ở chỗ chuyển từ tiết rảnh sang tiết bận;
-                        # lớp nằm trọn trong một dải bận thành ô duy nhất kèm nhãn
-                        # gọn "tiết 9-12" thay vì mỗi tiết một ô rời rạc.
-                        cut = None
-                        was_busy = periodId in busy_set
-                        for pid in range(periodId + 1, periodId + span):
-                            is_busy = pid in busy_set
-                            if is_busy and not was_busy:
-                                cut = pid
-                                break
-                            was_busy = is_busy
-                        if cut is not None:
-                            span = cut - periodId
-                        cell_busy = sorted(
-                            pid for pid in busy_set
-                            if periodId <= pid < periodId + span
-                        )
-                        content = f'<div class="course-card">{entry["html"]}</div>'
-                        if cell_busy:
-                            content = HtmlOutput.getBusyChip(cell_busy) + content
-                        cells.append(HtmlOutput.getHtmlCell(
-                            content, span, soft=bool(cell_busy)))
-                        if span > 1:
-                            covered[dayId].update(
-                                range(periodId + 1, periodId + span)
-                            )
-                        continue
-
-                    is_busy = periodId in busy_set
-                    content = (
-                        (HtmlOutput.getBusyChip([periodId]) if is_busy else "")
-                        + f'<div class="course-card continued">'
-                        f'{entry["continued"]}</div>'
-                    )
-                    cells.append(
-                        HtmlOutput.getHtmlCell(content, None, soft=is_busy)
-                    )
+                        card = f'<div class="course-card">{entry["html"]}</div>'
+                    else:
+                        card = (f'<div class="course-card continued">'
+                                f'{entry["continued"]}</div>')
+                    cells.append(HtmlOutput.getHtmlCell(chip + card, soft=is_busy))
                     continue
 
                 # Trùng phòng: xếp chồng mọi lớp đang diễn ra trong cùng ô.
@@ -3800,7 +3641,7 @@ class HtmlOutput:
                                 Constant.periodNumber(p),
                                 Constant.periodTimeRange(p, sep="-")))))
                 rows_html.append(
-                    '<div class="busy-row"><span class="busy-rowlabel" data-day="{}">{}</span>{}</div>'.format(
+                    '<div class="busy-row" data-day="{}"><span class="busy-rowlabel">{}</span>{}</div>'.format(
                         d, HtmlOutput.WEEK_DAYS[d], "".join(cells)))
             grid = (
                 '<div class="busy-grid" data-prof="{}">'
