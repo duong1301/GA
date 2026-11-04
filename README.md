@@ -15,16 +15,17 @@ Khi lập thời khóa biểu, bạn phải tính đến nhiều yêu cầu: s�
 1. Một lớp học chỉ có thể được xếp vào phòng học còn trống.
 2. Không giảng viên nào được có hai lớp học cùng lúc.
 
-**Ràng buộc mềm** (có thể bị vi phạm mà lịch vẫn khả thi):
+**Ràng buộc mềm** (có thể bị vi phạm mà lịch vẫn khả thi), trong mô tả kinh điển của bài
+toàn gồm:
 
 1. Thời gian giảng viên muốn dạy.
 2. Phòng học giảng viên muốn dùng.
 3. Mức độ phân bố (theo thời gian hoặc không gian) của các lớp học dành cho giảng viên.
 
-Rõ ràng, ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình huống cụ thể. Trong bản hiện
-tại cả hai nhóm đều được cài đặt, nhưng ràng buộc mềm luôn có trọng số phạt **nhỏ hơn**
-ràng buộc cứng — xem mục "Trọng số tiêu chí". Hãy bắt đầu bằng việc giải thích các đối
-tượng tạo nên một thời khóa biểu.
+Ràng buộc cứng và ràng buộc mềm phụ thuộc vào tình huống cụ thể. Bản hiện tại cài đặt ba
+ràng buộc cứng `P`, `G`, `N` và **một** ràng buộc mềm `B` — không xếp lớp vào khung giờ
+giảng viên báo bận; ba ràng buộc mềm kinh điển còn lại chưa được hiện thực. Ràng buộc
+mềm luôn có trọng số phạt **nhỏ hơn** ràng buộc cứng — xem mục "Trọng số tiêu chí".
 
 # Các đối tượng của thời khóa biểu
 
@@ -68,7 +69,10 @@ ràng buộc cứng). Cách tính phần cứng như sau:
 - Nếu lớp học không rơi vào khung giờ nghỉ trưa 12h–13h, tăng thêm một điểm cho lớp.
 - Nếu một lớp vi phạm quy tắc, điểm của tiêu chí đó là `1 - trọng số phạt` thay vì `1`. Trọng số phạt nằm trong khoảng 0 đến 1; `0` nghĩa là không phạt, `1` nghĩa là mất trọn điểm của tiêu chí.
 
-Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó `điểm_tối_đa = số_lớp_học × 3`. Giá trị độ thích nghi nằm trong khoảng từ 0 đến 1.
+Tổng điểm của một thời khóa biểu là tổng số điểm của tất cả các lớp, sau khi trừ phạt của
+ràng buộc mềm. Giá trị độ thích nghi được tính bằng `điểm_lịch / điểm_tối_đa`, trong đó
+`điểm_lịch = điểm cứng − tổng phạt mềm` và `điểm_tối_đa = số_lớp_học × 3`. Vì mỗi phạt mềm
+đều nhỏ hơn 1 điểm nên độ thích nghi vẫn nằm trong khoảng từ 0 đến 1.
 
 > **Lưu ý về cơ chế phạt:** Vì các ràng buộc cứng chỉ bị trừ điểm chứ không bị loại bỏ nhiệm vụ, nên luôn tồn tại một lời giải khả thi. Thuật toán tiến dần đưa giá trị độ thích nghi về gần 1, và dừng lại khi đạt ngưỡng (mặc định là 0,999).
 
@@ -103,6 +107,10 @@ Cấu trúc các khoá:
 **prof:**
 `id` (số, bắt buộc) - mã của giảng viên.
 `name` (chuỗi, bắt buộc) - tên của giảng viên.
+`subjects` (danh sách số, tuỳ chọn) - các môn giảng viên dạy được.
+`busy` (danh sách, tuỳ chọn) - khung giờ giảng viên bận; mỗi phần tử là
+`{"day": 0-4, "start": offset, "end": offset}` với `start`/`end` là **chỉ số khung giờ
+0-based** và đều bao gồm (inclusive).
 
 **course:**
 `id` (số, bắt buộc) - mã của môn học.
@@ -124,11 +132,13 @@ Lưu ý: các đối tượng giảng viên và môn học phải được đị
 
 ## Ví dụ dữ liệu mẫu
 
-Tệp `GaSchedule.json` đi kèm chứa: 10 giảng viên, 8 môn học, 3 phòng học và 38 lớp học.
+Tệp `GaSchedule.json` đi kèm chứa: 5 giảng viên, 10 môn học, 4 phòng học và 48 lớp học.
 
 ```json
 [
-    { "prof":   { "id": 1, "name": "Nguyễn Văn An" } },
+    { "prof":   { "id": 1, "name": "Nguyễn Văn An",
+                  "subjects": [1, 2],
+                  "busy": [{ "day": 0, "start": 0, "end": 1 }] } },
     { "course": { "id": 1, "name": "Lập trình hướng đối tượng" } },
     { "room":   { "name": "Phòng 201" } },
     { "class":  { "professor": 1, "course": 1, "duration": 2 } }
@@ -149,7 +159,7 @@ mỗi tiêu chí tối đa 1 điểm (P, G, N); trọng số là mức phạt kh
 Khi một lớp vi phạm tiêu chí cứng, điểm của tiêu chí đó là `1 - trọng số`, tức mất trọn
 1 điểm. Trọng số `0` nghĩa là không phạt, còn `1` là phạt tối đa.
 
-**Ràng buộc mềm** chỉ làm giảm điểm của nhiễm vụ khả thi và **luôn có trọng số nhỏ hơn
+**Ràng buộc mềm** chỉ làm giảm điểm của nhiệm vụ khả thi và **luôn có trọng số nhỏ hơn
 một vi phạm cứng**, để thuật toán bao giờ cũng ưu tiên sửa P/G/N trước:
 
 | Mã | Tiêu chí (mềm) | Cách tính | Trọng số phạt |
@@ -161,8 +171,9 @@ một vi phạm mềm không bao giờ đắt bằng một vi phạm cứng.
 
 Trên báo cáo HTML, ô lớp bị xếp vào khung giảng viên bận tô **cam** kèm nhãn
 `GV bận · tiết 3` (ràng buộc mềm); rê chuột vào nhãn để thấy khung giờ tương ứng
-(VD `8:40–9:30`). Mỗi tiết là **một ô riêng, không gộp `rowspan`**: tiết đầu của lớp
-hiện đầy đủ môn học, giảng viên, phòng; các tiết sau hiện thẻ **Tiếp tiết**. Ô trống
+(VD `8:40–9:30`). Các tiết liền nhau của cùng một lớp được gộp thành **một ô
+`rowspan`** duy nhất; chỉ khi một lớp khác trùng vào giữa chuỗi, các tiết còn lại mới
+tách ra và mang thẻ **Tiếp tiết**. Ô trống
 có sọc cam trong lịch của một giảng viên là tiết giảng viên đó báo bận. Phân biệt
 với **đỏ** của ràng buộc cứng; mỗi giảng viên có badge số lớp dính bận ở đầu bảng
 lịch. Giao diện không dùng hiệu ứng `:hover`, mọi trạng thái đều hiển thị sẵn.
@@ -277,9 +288,9 @@ Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaSc
 
 - Phần tiêu đề và thống kê độ phù hợp.
 - **Thông số thuật toán**: khối nằm trên phần chú thích và dữ liệu đầu vào, mở sẵn để chỉnh kích thước quần thể, lai ghép, đột biến, điều kiện dừng và fitness mục tiêu; nút **↻ Chạy lại** nằm ở phần đầu khối.
-- **Chú thích 3 tiêu chí** với ký hiệu `P/G/N`, được giữ cố định khi cuộn trang.
-- **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 11 hàng tương ứng 11 khung giờ (10 tiết dạy từ 7h–12h và 13h–18h, xen giữa là hàng nền kẻ chéo "Nghỉ trưa" 12h–13h) và 5 cột tương ứng từ thứ hai đến thứ sáu.
-- **Lịch giảng dạy theo giảng viên**: nằm ngay dưới thời khóa biểu cuối cùng; mỗi giảng viên một bảng 11 khung giờ × 5 ngày (giống bảng phòng, gồm hàng nghỉ trưa), kèm badge số tiết/tuần và số môn trong tuần; mỗi ô ghi môn học cùng tên phòng (nhãn tím). Bấm vào tên giảng viên để thu gọn hoặc mở rộng bảng; nếu vi phạm tiêu chí `G`, ô bị trùng được xếp chồng kèm nhãn `Trùng lịch giảng viên`.
+- **Chú thích ràng buộc** với ba ký hiệu cứng `P/G/N` và ký hiệu mềm `B` (kèm trọng số phạt của từng loại), được giữ cố định khi cuộn trang.
+- **Thời khóa biểu cuối cùng**: một bảng cho mỗi phòng học, 13 hàng tương ứng 13 khung giờ (12 tiết dạy, sáng 6 tiết từ 7h–12h và chiều 6 tiết từ 13h–18h, xen giữa là hàng nền kẻ chéo "Nghỉ trưa" 12h–13h) và 5 cột tương ứng từ thứ hai đến thứ sáu.
+- **Lịch giảng dạy theo giảng viên**: nằm ngay dưới thời khóa biểu cuối cùng; mỗi giảng viên một bảng 13 khung giờ × 5 ngày (giống bảng phòng, gồm hàng nghỉ trưa), kèm badge số tiết/tuần và số môn trong tuần; mỗi ô ghi môn học cùng tên phòng (nhãn tím). Bấm vào tên giảng viên để thu gọn hoặc mở rộng bảng; nếu vi phạm tiêu chí `G`, ô bị trùng được xếp chồng kèm nhãn `Trùng lịch giảng viên`.
 - **Dữ liệu đầu vào**: nằm phía trên kết quả cuối cùng và có thể thu gọn/mở rộng; gồm các bảng giảng viên, môn học và phòng học, kèm số giờ và sức chứa để đối chiếu với kết quả xếp lịch. Bảng giảng viên không hiển thị số lớp học phần mà giảng viên đảm nhận.
 - **Fitness qua các thế hệ**: biểu đồ đường ghi lại fitness của thế hệ tốt nhất sau mỗi bước, giúp thấy rõ mức tăng/giảm; trục dọc được thu gọn quanh dải fitness thực tế để biến động dễ nhìn hơn; phía dưới có các chỉ số bắt đầu, cao nhất và cuối cùng.
 - **Thời khóa biểu qua các bước**: lưới 10 cột, mỗi ô là một thế hệ với fitness (phần trăm), tổng số vi phạm và số vi phạm từng tiêu chí `P/G/N`; ô nền xanh là thế hệ không có vi phạm, ô có viền vàng là thế hệ fitness cao nhất. Bấm vào một ô (hoặc di chuyển bằng phím mũi tên) thì thời khóa biểu của thế hệ đó hiện ra ở khung ngay dưới lưới, gồm cả phần đầu ghi fitness, số vi phạm, thời gian và quy mô quần thể. Khung lưới giới hạn chiều cao (mặc định 430px, chỉnh bằng biến CSS `--step-grid-height`) và cuộn ngay trong khung nên trang không bị dài khi số thế hệ lớn.
@@ -287,95 +298,106 @@ Kết quả là một tệp HTML hoàn chỉnh (đã nhúng sẵn CSS và JavaSc
 Giao diện dùng thẻ (card) cho từng phòng và từng nhóm dữ liệu đầu vào, bảng có viền gọn, màu trạng thái và tự co giãn trên màn hình nhỏ; phần thông số thuật toán nằm trên cùng và mở sẵn, còn dữ liệu đầu vào nằm trên kết quả cuối và mặc định thu gọn để không chiếm chỗ. Khi in chỉ giữ lại phần kết quả (thời khóa biểu phòng và lịch giảng dạy của giảng viên). Phần chú thích được giữ cố định ở đầu trang khi cuộn để luôn đối chiếu được các ký hiệu. Mỗi ô chứa thông tin của lớp học:
 
 - Tên môn học, tên giảng viên và nhãn thời lượng (ví dụ `2 tiết`).
-- Nếu nhiều lớp cùng được xếp vào một phòng, cùng ngày và cùng tiết (vi phạm tiêu chí `P`), tất cả vẫn được hiển thị: các thẻ lớp học xếp chồng trong ô kèm nhãn `Trùng phòng`; những tiết tiếp theo của lớp kéo dài được đánh dấu `Tiếp tiết`.
-- Hai ký hiệu nhỏ mô tả trạng thái kiểm tra ràng buộc, **xanh lá là đạt, đỏ là vi phạm** (đưa chuột vào sẽ hiện giải thích):
+- Các tiết liền nhau của cùng một lớp trong cùng một cột ngày được **gộp thành một ô `rowspan`** cao bằng số tiết; ô đó mang nhãn thời lượng (ví dụ `3 tiết`) và, nếu lớp dính khung bận, một nhãn `GV bận · tiết 1-2` liệt kê đúng các tiết bận trong khoảng gộp.
+- Nếu nhiều lớp cùng được xếp vào một phòng, cùng ngày và cùng tiết (vi phạm tiêu chí `P`), tất cả vẫn được hiển thị: các thẻ lớp học xếp chồng trong ô kèm nhãn `Trùng phòng`, và chuỗi tiết bị cắt tại đúng ô trùng — các tiết còn lại của lớp kéo dài mang dấu `Tiếp tiết`.
+- Ba ký hiệu nhỏ mô tả trạng thái ràng buộc cứng, **xanh lá là đạt, đỏ là vi phạm** (đưa chuột vào sẽ hiện giải thích), kèm một ký hiệu mềm màu cam chỉ xuất hiện khi lớp dính khung bận:
 
 | Ký hiệu | Ý nghĩa |
 |---|---|
 | `P` | Phòng học không bị trùng lịch |
 | `G` | Giảng viên không bị trùng lịch dạy |
 | `N` | Lớp không bị xếp vào khung nghỉ trưa 12h–13h |
+| `B` | (cam, tuỳ chọn) lớp không rơi vào khung giờ giảng viên bận — ràng buộc mềm |
 
 # Theo dõi từng bước khi chạy
 
-Tệp `Trace.py` in ra console thông tin đầu vào, tiến trình tối ưu hoá và lịch giảng dạy của từng giảng viên sau khi có kết quả. Đồng thời, mỗi thế hệ được lưu vào bộ nhớ để `HtmlOutput` vẽ biểu đồ fitness và thời khóa biểu của các bước (xem mục "Giải thích kết quả xuất ra").
+Tệp `Trace.py` in ra console thông tin đầu vào, tiến trình tối ưu hoá và lịch giảng dạy
+của từng giảng viên sau khi có kết quả. Đồng thời, mỗi thế hệ được lưu vào bộ nhớ để
+`HtmlOutput` vẽ biểu đồ fitness và thời khóa biểu của các bước (xem mục "Giải thích kết quả
+xuất ra"). Các bảng console dùng ký tự khung `┃ ┌ ─ ┐` và rút gọn cột dài bằng `…`.
 
 **0. Thông tin đầu vào** — in ra trước khi thuật toán bắt đầu chạy
 
 Gồm 5 bảng: giảng viên, môn học, phòng học, toàn bộ danh sách lớp học, và thống kê tổng thể.
 
-```
-THÔNG TIN ĐẦU VÀO
-Tệp cấu hình : /GaSchedule.json
-Quy mô       : 10 giảng viên · 8 môn học · 3 phòng học · 38 lớp học
+```text
+  THÔNG TIN ĐẦU VÀO
+  Tệp cấu hình : GaSchedule.json
+  Quy mô       : 5 giảng viên · 10 môn học · 4 phòng học · 48 lớp học
 
-  GIẢNG VIÊN
-  Mã    Họ tên                     Danh sách môn dạy
-  1     Nguyễn Văn An               Cơ sở dữ liệu, Cấu trúc dữ liệu...
-  ...
+ ┃ GIẢNG VIÊN                                               ┃
+ │ 1  │ Nguyễn Văn An     │ Công nghệ Web, Cấu trúc dữ li… │
+ │ 2  │ Trần Thị Bình     │ Cơ sở dữ liệu, Cấu trúc dữ li… │
+ ...
 
-  LỚP HỌC
-  Mã    Môn học                    Giảng viên      Thời lượng
-  0     Lập trình hướng đối tượng  Nguyễn Văn An   3 tiết
-  2     Lập trình hướng đối tượng  Lê Quốc Cường   3 tiết
-  ...
+ ┃ MÔN HỌC                                                        ┃
+ │ 1  │ Lập trình hướng đối tượng      │ 6      │ 18             │
+ ...
+ │    │ Tổng cộng                      │ 48     │ 160            │
 
-  THỐNG KÊ
-  Tổng số giờ học trong tuần : 80 giờ (38 lớp, trung bình 2.1 giờ/lớp)
-  Sức chứa của hệ thống phòng: 10 tiết/ngày x 5 ngày x 3 phòng = 150 giờ
-  Tỉ lệ sử dụng phòng       : 53.3%
-```
+ ┃ PHÒNG HỌC                         ┃
+ │ 0  │ Phòng 201 │ 60 giờ          │
+ │ 1  │ Phòng 102 │ 60 giờ          │
+ │ 2  │ Phòng 303 │ 60 giờ          │
+ │ 3  │ Phòng 401 │ 60 giờ          │
 
-Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức chứa phòng trước khi chạy thuật toán.
-
-**1. Dòng tóm tắt cho mỗi thế hệ**
-
-```
-THẾ HỆ 10     │ Độ phù hợp: 0.862963 │ Cá thể: 100  │ Không cải thiện: 6     │ 3.73s
-    ┌────┬────────────────────────────────────┬──────────┬────────┐
-    │ Mã │ Ràng buộc                          │ Đạt/tổng │ Kết quả│
-    ├────┼────────────────────────────────────┼──────────┼────────┤
-    │ P  │ Phòng học không bị trùng           │   38/38  │   ✓    │
-    │ G  │ Giảng viên không trùng lịch        │   36/38  │   ✗    │
-    │ N  │ Không xếp vào khung nghỉ trưa ...  │   38/38  │   ✓    │
-    └────┴────────────────────────────────────┴──────────┴────────┘
+  ┃ THỐNG KÊ                                                                  ┃
+  │ Tổng số giờ học trong tuần  │ 160 giờ  (48 lớp · trung bình 3.3 giờ/lớp) │
+  │ Sức chứa của hệ thống phòng │ 12 tiết/ngày × 5 ngày × 4 phòng = 240 giờ  │
+  │ Tỉ lệ sử dụng phòng         │ 66.7 %                                     │
 ```
 
-**2. Bảng thời khóa biểu đầy đủ** của cá thể tốt nhất, in lặp lại mỗi 10 thế hệ. Ta có thể quan sát lịch được sắp xếp lại dần như thế nào. Dấu `^` nghĩa là tiết tiếp theo của cùng một lớp đang kéo dài:
+Phần thống kê cuối giúp kiểm tra nhanh quy mô dữ liệu và sức chứa phòng trước khi chạy
+thuật toán.
 
-```
-  +-- PHÒNG Phòng 201 ----------------------------------------------------
-  +------------------------------------------------------------------------------------
-  | Tiết              | T2                        | T3                        | ...
-  +------------------------------------------------------------------------------------
-  | Tiết 2 (8-9)      |                           | Lập trình hướng đối tượng / Trần Thị | ...
-  | Tiết 3 (9-10)     | An toàn thông tin        | ^                         | ...
-  | Tiết 4 (10-11)    |                           | ^                         | ...
-  | Nghỉ trưa 12-13   |                           |                           | ...
-  | Tiết 7 (13-14)    |                           |                           | ...
-  +------------------------------------------------------------------------------------
+**1. Dòng tóm tắt cho mỗi thế hệ**, kèm hai bảng nhỏ: ràng buộc cứng `P/G/N` (đạt trên tổng
+số lớp) và ràng buộc mềm `B` (số lớp dính bận cùng trọng số phạt).
+
+```text
+  THẾ HỆ 10     │ Độ phù hợp: 0.637500 │ Cá thể: 60   │ Không cải thiện: 4    │   0.17s
+    │ P  │ Phòng học không bị trùng       │ 21/48      │ ✗       │
+    │ G  │ Giảng viên không trùng lịch    │ 25/48      │ ✗       │
+    │ N  │ Không xếp vào khung nghỉ trưa… │ 48/48      │ ✓       │
+    │ B  │ Tránh khung giờ bận của GV │ 11 lớp dính bận │ ×0.2 │
 ```
 
-**3. Chi tiết từng lớp học** kèm 3 cờ tiêu chí, in mỗi 50 thế hệ. `-` là đạt, `X` là vi phạm:
+**2. Bảng thời khóa biểu đầy đủ** của cá thể tốt nhất, in lặp lại mỗi 10 thế hệ, một bảng
+cho mỗi phòng. Ta có thể quan sát lịch được sắp xếp lại dần như thế nào. Dấu `↳` nghĩa là
+tiết tiếp theo của cùng một lớp đang kéo dài:
 
+```text
+  THỜI KHÓA BIỂU TỐI ƯU  —  thế hệ 10  │  độ phù hợp 0.637500
+ ┃ PHÒNG Phòng 201
+ │ Tiết              │ T2                 │ T3                 │ ...
+ │ Tiết 1  7:00-7:50  │ Cấu trúc dữ liệu … │                    │ ...
+ │                    │ Nguyễn Văn An (4h) │                    │ ...
+ │ Tiết 2  7:50-8:40  │ An toàn thông tin  │                    │ ...
+ │ Tiết 3  8:40-9:30  │ An toàn thông tin  │                    │ ...
+ │ Tiết 4  9:30-10:20 │ ↳                  │                    │ ...
+ │ Nghỉ trưa    12:0… │                    │                    │ ...
 ```
-  Mã   Môn học                      Giảng viên           Ngày  Tiết        Phòng     P G N
-  0    Lập trình hướng đối tượng    Nguyễn Văn An        T6    tiết 8 (3h)   Phòng 102  ---
-  4    Lập trình hướng đối tượng    Vũ Anh Đức           T4    tiết 9 (2h)   Phòng 102  -X-
+
+**3. Chi tiết từng lớp học** kèm ba cờ tiêu chí cứng, in mỗi 50 thế hệ. `✓` là đạt, `✗` là
+vi phạm:
+
+```text
+ ┃ CHI TIẾT TỪNG LỚP HỌC — thế hệ 1
+ │ Mã │ Môn học                │ Giảng viên    │ Ngày │ Tiết    │ Phòng     │ P │ G │ N │
+ │ 0  │ Lập trình hướng đối t… │ Phạm Thị Dung │ T4   │ 11 (3h) │ Phòng 401 │ ✗ │ ✗ │ ✓ │
+ │ 1  │ Lập trình hướng đối t… │ Phạm Thị Dung │ T6   │ 8 (3h)  │ Phòng 102 │ ✓ │ ✓ │ ✓ │
 ```
 
 **4. Lịch giảng dạy theo giảng viên** — in ra một lần, sau khi thuật toán chạy xong
 
-Mỗi lớp học là một dòng, sắp xếp theo giảng viên rồi theo ngày và tiết, giúp xem nhanh một giảng viên dạy môn nào, ngày nào, tiết mấy, phòng nào:
+Mỗi lớp học là một dòng, sắp xếp theo giảng viên rồi theo ngày và tiết, giúp xem nhanh một
+giảng viên dạy môn nào, ngày nào, tiết mấy, phòng nào:
 
+```text
+ ┃ LỊCH GIẢNG DẠY THEO GIẢNG VIÊN
+ │ Giảng viên    │ Môn học                  │ Ngày │ Tiết    │ Thời lượng │ Phòng     │
+ │ Trần Thị Bình │ Hệ điều hành             │ T3   │ 1 (3h)  │ 3 tiết     │ Phòng 201 │
+ │ Lê Quốc Cường │ Mạng máy tính            │ T2   │ 2 (4h)  │ 4 tiết     │ Phòng 102 │
 ```
-  LỊCH GIẢNG DẠY THEO GIẢNG VIÊN
-  Giảng viên        Môn học                 Ngày  Tiết      Thời lượng  Phòng
-  Nguyễn Văn An     Cơ sở dữ liệu           T2    7 (2h)     2 tiết      Phòng 201
-  Nguyễn Văn An     Cấu trúc dữ liệu...     T4    3 (3h)     3 tiết      Phòng 102
-  ...
-```
-
 ## Tinh chỉnh mức độ chi tiết
 
 Điều chỉnh các hằng số ở đầu tệp `Trace.py`:
