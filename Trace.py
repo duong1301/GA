@@ -152,6 +152,8 @@ class Trace:
             Constant.periodNumber(offset), Constant.periodTimeRange(offset, sep="-"))
         for offset in range(Constant.DAY_HOURS)
     )
+    # Thứ tự ba ký hiệu PHẢI trùng với thứ tự cờ trong Schedule._criteria và với
+    # Criteria.weights: 0 = P (phòng), 1 = G (giảng viên), 2 = N (nghỉ trưa).
     CRITERIA_NAMES = ("P", "G", "N")
     CRITERIA_MEAN = ("Phòng", "GV", "Nghỉ trưa")
     _start_time = time.time()
@@ -160,7 +162,12 @@ class Trace:
 
     @staticmethod
     def reset():
-        """Đặt lại mốc thời gian và xóa lịch sử, gọi một lần trước khi chạy."""
+        """Đặt lại mốc thời gian và xóa lịch sử, gọi một lần trước khi chạy.
+
+        Mốc này là cơ sở của cột giây trong dòng thế hệ và trục thời gian của biểu
+        đồ fitness, nên phải reset TRƯỚC alg.run nếu không elapsed sẽ tính từ lúc
+        nhập dữ liệu.
+        """
         Trace._start_time = time.time()
         Trace._history = []
 
@@ -171,12 +178,27 @@ class Trace:
 
     @staticmethod
     def get_history():
-        """Trả về danh sách ảnh chụp kết quả của từng thế hệ đã chạy."""
+        """Trả về bản sao danh sách ảnh chụp kết quả của từng thế hệ đã chạy.
+
+        Mỗi lần chạy lại một bộ thông số phải có danh sách riêng; trả về bản sao để
+        HtmlOutput không vô tình sửa lịch sử đang dùng.
+        """
         return list(Trace._history)
+
 
     @staticmethod
     def _record(solution, generation: int, populationSize: int, bestNotEnhance: int):
-        """Lưu lại kết quả của một thế hệ mà không làm chậm đáng kể thuật toán."""
+        """Chụp lại trạng thái cá thể tốt nhất của một thế hệ vào lịch sử.
+
+        Lịch sử này là nguồn duy nhất để HtmlOutput vẽ biểu đồ fitness và bảng
+        "qua các bước", nên phần đếm tiêu chí ở đây phải khớp tuyệt đối với cách
+        Schedule.calculateFitness ghi cờ.
+
+        Đếm tiêu chí: _criteria là mảng class-major, mỗi lớp 3 cờ liên tiếp
+        (P, G, N) nên bước nhảy step = 3 và:
+            tổng số lớp   total = len(criteria) // 3
+            số lớp đạt i  counts[i] = |{k : criteria[k × 3 + i]}|
+        """
         if len(Trace._history) >= MAX_HISTORY:
             return
 
@@ -188,8 +210,8 @@ class Trace:
             for i in range(step)
         )
         Trace._history.append({
-            "generation": int(generation),
-            "fitness": float(solution.fitness),
+            "generation": int(generation),      # thế hệ 1-based như dòng console
+            "fitness": float(solution.fitness),  # điểm / (3 × số lớp)
             "criteria": criteria.copy(),
             "classes": dict(solution.classes),
             "professors": dict(getattr(solution, "professors", {}) or {}),
@@ -200,6 +222,7 @@ class Trace:
             "bestNotEnhance": int(bestNotEnhance or 0),
             "elapsed": Trace.elapsed(),
         })
+
 
     # ==================== THÔNG TIN ĐẦU VÀO ====================
 
@@ -280,9 +303,21 @@ class Trace:
 
     @staticmethod
     def _statistics(configuration):
+        """In các chỉ số quy mô: tổng giờ, sức chứa và tỉ lệ lấp đầy phòng.
+
+        công thức:
+            tổng giờ cần xếp = Σ duration của mọi lớp
+            sức chứa tuần    = TEACHING_HOURS × DAYS_NUM × số phòng
+                               = 12 tiết × 5 ngày × số phòng
+                               (dùng 12 chứ không phải 13 vì nghỉ trưa không xếp được)
+            tỉ lệ sử dụng    = tổng giờ / sức chứa × 100
+        Bộ dữ liệu mẫu 160 giờ / 240 chỗ ≈ 66.7 %; càng sát 100 % thì bài toán càng
+        khó vì gần như không còn chỗ trống để dời lớp tránh trùng.
+        """
         classes = configuration.courseClasses
         totalHours = sum(cc.Duration for cc in classes)
         capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM * configuration.numberOfRooms
+
 
         pairs = [
             ("Tổng số giờ học trong tuần",
@@ -336,10 +371,18 @@ class Trace:
 
     @staticmethod
     def generation(generation: int, best, populationSize: int, bestNotEnhance: int = 0):
-        """In một dòng tóm tắt cho thế hệ hiện tại, kèm bảng các tiêu chí."""
+        """In một dòng tóm tắt cho thế hệ hiện tại, kèm bảng các tiêu chí.
+
+        Dòng đầu là fitness của cá thểelit (best = GeneticAlgorithm.result, tức
+        _bestChromosomes[0]); "Không cải thiện" chính là bộ đếm repeat mà vòng
+        chạy dùng cho tiêu chí maxStagnation (|Δfitness| <= 1e-7).
+        Bảng dưới đếm số lớp ĐẠT từng ràng buộc cứng trên tổng số lớp, nên cột
+        chỉ đầy khi mọi lớp cùng qua tiêu chí đó — một vi phạm là thấy ngay ✗.
+        """
         criteria = best.criteria
         step = len(Trace.CRITERIA_NAMES)
         total = len(criteria) // step
+
 
         print("\n" + "─" * 96)
         print("  THẾ HỆ {:<6} │ Độ phù hợp: {:.6f} │ Cá thể: {:<4} │ "
@@ -364,7 +407,14 @@ class Trace:
 
     @staticmethod
     def softCriteria(solution):
-        """In bảng tóm tắt ràng buộc mềm B và trọng số."""
+        """In bảng tóm tắt ràng buộc mềm B và trọng số.
+
+        Chấm lại y hệt Schedule.calculateFitness để con số in ra khớp với phạt đã
+        trừ vào fitness: đếm theo LỚP (một lớp dính bao nhiêu ô bận cũng chỉ tính
+        một lần), so (ngày, offset) với Professor.BusySlots bằng isBusyAt.
+        Tổng phạt mềm của thế hệ = busy_violations × Criteria.busyPenalty, quy ra
+        fitness là chia tiếp cho (3 × số lớp).
+        """
         classes = getattr(solution, "classes", None) or {}
         professors = getattr(solution, "professors", None) or {}
         busy_violations = 0
@@ -378,6 +428,7 @@ class Trace:
             if any(prof.isBusyAt(day, time + off) for off in range(dur)):
                 busy_violations += 1
 
+
         t = Table(["Mã", "Ràng buộc mềm", "Giá trị", "Phạt"], ["c", "l", "r", "r"])
         t.indent = "    "
         t.add(["B", "Tránh khung giờ bận của GV",
@@ -387,7 +438,13 @@ class Trace:
 
     @staticmethod
     def detail(solution, generation: int):
-        """In chi tiết từng lớp học của cá thể tốt nhất kèm cờ từng tiêu chí."""
+        """In chi tiết từng lớp học của cá thể tốt nhất kèm cờ từng tiêu chí.
+
+        Mỗi hàng in lại ba ✓/✗ đúng theo cờ P-G-N mà fitness đã dùng, nên bảng này
+        giải thích được vì sao một cá thể mất điểm. Cờ của lớp thứ index nằm ở
+        index × 3 + i vì _criteria sắp class-major và thứ tự hàng theo đúng thứ tự
+        lớp trong nhiễm sắc thể.
+        """
         configuration = solution.configuration
         codes = Trace.CRITERIA_NAMES
 
@@ -405,6 +462,8 @@ class Trace:
             professor_name = professor.Name if professor is not None else "—"
             row = [index, cc.Course.Name, professor_name,
                    Trace.WEEK_DAYS[res.Day],
+                   # res.Time + 1 là SỐ DÒNG trong lưới 13 offset (nghỉ trưa ở dòng
+                   # 7), buổi chiều lệch 1 so với nhãn "Tiết" của Trace.PERIODS
                    "{} ({}h)".format(res.Time + 1, cc.Duration),
                    room.Name if room else res.Room]
             for i in range(len(codes)):
@@ -416,7 +475,15 @@ class Trace:
 
     @staticmethod
     def schedule(solution, generation: int):
-        """In bảng thời khóa biểu đầy đủ, mỗi phòng một bảng."""
+        """In bảng thời khóa biểu đầy đủ, mỗi phòng một bảng.
+
+        Lưới dựng từ cover[(phòng, ngày, offset)] chứ không đọc trực tiếp
+        Schedule._slots: mỗi lớp ghi nhãn "môn · giảng viên" lên đủ dur ô liên tiếp
+        của nó, ô mở đầu mang nhãn đầy đủ, các ô sau in ký tự ↳ để báo "tiết tiếp
+        theo của cùng lớp". Cách này cũng làm lộ xung đột: hai lớp cùng ô thì lớp
+        ghi sau đè nhãn lớp ghi trước, đúng như cảnh trùng phòng mà penalty P phản
+        ánh.
+        """
         configuration = solution.configuration
         print("\n" + "═" * 96)
         print("  THỜI KHÓA BIỂU TỐI ƯU  —  thế hệ {}  │  độ phù hợp {:.6f}"
@@ -434,6 +501,7 @@ class Trace:
             for offset in range(cc.Duration):
                 cover[(res.Room, res.Day, res.Time + offset)] = (
                     label, offset == 0, cc.Duration)
+
 
         for room_id in range(configuration.numberOfRooms):
             room = configuration.getRoomById(room_id)
@@ -466,7 +534,13 @@ class Trace:
 
     @staticmethod
     def professors(solution):
-        """In lịch giảng dạy của từng giảng viên, sắp xếp theo GV rồi theo ngày."""
+        """In lịch giảng dạy của từng giảng viên, sắp xếp theo GV rồi theo ngày.
+
+        Mỗi lớp học phần thành một dòng (không gộp các lớp cùng GV), sắp theo bộ
+        ba (ID giảng viên, ngày, offset) nên lịch của một người đọc từ T2 đến T6.
+        Bảng này là góc nhìn "một giảng viên dạy gì ở đâu", bù cho bảng THỜI KHÓA
+        BIỂU theo phòng; lớp chưa được gán giảng viên vẫn in, với tên "—".
+        """
         configuration = solution.configuration
 
         rows = []
@@ -483,11 +557,14 @@ class Trace:
                     professor.Name if professor is not None else "—",
                     cc.Course.Name,
                     Trace.WEEK_DAYS[res.Day],
+                    # cùng quy ước số dòng với bảng detail: res.Time + 1 (offset
+                    # 0-based -> 1-based), KHÔNG phải nhãn "Tiết" của PERIODS
                     "{} ({}h)".format(res.Time + 1, cc.Duration),
                     "{} tiết".format(cc.Duration),
                     room.Name if room else str(res.Room),
                 ],
             ))
+
 
         if not rows:
             return

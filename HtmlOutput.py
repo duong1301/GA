@@ -1,3 +1,18 @@
+"""Module dựng báo cáo HTML cho thuật toán xếp thời khoá biểu bằng GA.
+
+HtmlOutput chỉ sinh chuỗi: nhận nhiễm sắc thể tốt nhất (Schedule) và lịch sử
+các thế hệ do Trace.get_history() trả về, rồi dựng MỘT trang HTML tự chứa gồm
+  - khối đầu trang: quy mô bài toán + độ phù hợp (fitness) của lời giải,
+  - chú thích 3 ràng buộc cứng P/G/N và ràng buộc mềm B,
+  - dữ liệu đầu vào (giảng viên / lớp học phần / phòng học + lưới giờ bận),
+  - thời khoá biểu cuối cùng theo phòng học và theo giảng viên,
+  - biểu đồ fitness qua các thế hệ và lưới thế hệ bấm-để-xem-lịch.
+
+CSS (PAGE_STYLE) và JavaScript (PAGE_SCRIPT) được nhúng thẳng vào trang nên
+báo cáo xem được ngoại tuyến; riêng lưới thế hệ còn dựng sẵn phía máy chủ để
+trang vẫn có lịch khi trình duyệt không chạy JavaScript.
+"""
+
 import html
 import json
 import math
@@ -12,13 +27,28 @@ from model.Reservation import Reservation
 
 
 class HtmlOutput:
+    """Lớp tĩnh dựng báo cáo; mọi hàm chỉ đọc lời giải, không biến đổi nó."""
+
+    # Kích thước lưới MỘT bảng lịch, đã tính cả hàng/cột tiêu đề:
+    #   ROOM_COLUMN_NUMBER = DAYS_NUM + 1 = 5 + 1 = 6
+    #       -> 1 cột nhãn "Tiết" + 5 ngày T2..T6
+    #   ROOM_ROW_NUMBER    = DAY_HOURS + 1 = 13 + 1 = 14
+    #       -> 1 hàng tiêu đề + 13 offset của một ngày (0..12)
+    # Bảng vì thế dùng periodId = offset + 1 (chạy 1..13), khác với Reservation
+    # và Professor.BusySlots vốn lưu offset 0-based.
     ROOM_COLUMN_NUMBER = Constant.DAYS_NUM + 1
     ROOM_ROW_NUMBER = Constant.DAY_HOURS + 1
+    # Màu huy hiệu tiêu chí: xanh = đạt, đỏ = vi phạm ràng buộc cứng.
     COLOR1 = "#047857"
     COLOR2 = "#b91c1c"
     # Ký hiệu viết tắt của 3 tiêu chí kiểm tra ràng buộc:
     #   P = Phòng học   G = Giảng viên   N = Nghỉ trưa
+    # Thứ tự P-G-N trùng đúng thứ tự của Criteria.weights, nên cờ tiêu chí i của
+    # lớp thứ k nằm tại Schedule._criteria[k * 3 + i] (len(weights) = 3).
+    # Các hàm duyệt lớp vì vậy tăng con trỏ ci thêm len(CRITERIAS) = 3 mỗi lớp.
     CRITERIAS = ('P', 'G', 'N')
+    # Ba chuỗi mô tả dưới đây đồng chỉ số với CRITERIAS: phần tử i là nhãn/mô tả
+    # của tiêu chí CRITERIAS[i], dùng cho chú thích và tooltip của huy hiệu.
     CRITERIA_LABELS = (
         "Phòng không trùng lịch",
         "Giảng viên không trùng lịch",
@@ -36,8 +66,14 @@ class HtmlOutput:
     )
 
     # Ký hiệu + nhãn của RÀNG BUỘC MỀM tối ưu lịch giảng dạy.
+    # B là ràng buộc mềm duy nhất được cài đặt: lớp bị xếp vào khung giờ bận của
+    # chính giảng viên được giao, phạt Criteria.busyPenalty = 0.2 điểm và chỉ tính
+    # MỘT LẦN cho mỗi lớp (dù dính mấy tiết bận). Nhẹ hơn vi phạm cứng (1.0 điểm).
     SOFT_CRITERIAS = ('B',)
     SOFT_LABELS = ("Tránh khung giờ bận của giảng viên",)
+    # Chuỗi 14 nhãn cho 14 hàng bảng, index = periodId (offset 0-based + 1):
+    #   PERIODS[0] = "" (hàng tiêu đề), PERIODS[7] = "Nghỉ trưa"
+    #   (vì offset nghỉ trưa LUNCH_PERIOD = 6 -> periodId 7).
     PERIODS = ("",) + tuple(
         "Nghỉ trưa" if offset == Constant.LUNCH_PERIOD
         else f"Tiết {Constant.periodNumber(offset)}"
@@ -46,15 +82,21 @@ class HtmlOutput:
     # Mỗi tiết dài 50 phút và các tiết trong cùng buổi LIỀN NHAU:
     #   Tiết 1: 7:00-7:50, Tiết 2: 7:50-8:40, ... (không có khoảng nghỉ 10 phút)
     # Khung nghỉ trưa là khoảng giữa buổi sáng và buổi chiều.
+    # Khung giờ của từng hàng, cùng quy ước index với PERIODS:
+    # PERIOD_TIMES[periodId] tra thẳng theo số hàng (periodId = offset + 1).
     PERIOD_TIMES = ("",) + tuple(
         Constant.lunchRange()
         if offset == Constant.LUNCH_PERIOD
         else Constant.periodTimeRange(offset)
         for offset in range(Constant.DAY_HOURS)
     )
+    # Nhãn ngày theo day index 0-based của bài toán (T2 = ngày 0); bảng lịch hiển
+    # thị theo dayId = ngày + 1 nên vòng lặp cột chạy 1..ROOM_COLUMN_NUMBER-1.
     WEEK_DAYS = ("T2", "T3", "T4", "T5", "T6")
     WEEK_DAY_NAMES = ("Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu")
 
+    # Toàn bộ CSS của báo cáo, nhúng thẳng vào trang để xem được ngoại tuyến.
+    # Ba bộ biến --ok/--bad/--soft tương ứng đạt / vi phạm cứng / vi phạm mềm.
     PAGE_STYLE = """<style>
         :root {
             color-scheme: light;
@@ -2056,6 +2098,8 @@ class HtmlOutput:
             });
         })();
         // Thời khóa biểu của từng thế hệ: bấm một ô trong lưới để xem ở dưới.
+        // Đây là bản dựng phía trình duyệt của getScheduleTable + generateTimeTable,
+        // đọc payload do getStepsData sinh ra (id="step-data").
         (() => {
             const source = document.getElementById("step-data");
             const grid = document.getElementById("step-grid");
@@ -2089,6 +2133,7 @@ class HtmlOutput:
                 if (element) element.textContent = value;
             };
 
+            // Số ô mỗi hàng của lưới thế hệ (CSS khai báo 10 cột), dùng cho phím lên/xuống.
             const columns = () => {
                 const value = getComputedStyle(grid).gridTemplateColumns;
                 const count = value ? value.split(" ").length : 0;
@@ -2103,6 +2148,8 @@ class HtmlOutput:
                 data.busy[profId].forEach(slot =>
                     busyKeys.add(profId + "|" + slot[0] + "|" + slot[1]));
             });
+            // Khoá lưu theo (ngày, OFFSET 0-based); bảng lịch tra theo periodId nên
+            // phải trừ 1: periodId = offset + 1, ví dụ offset nghỉ trưa 6 là hàng 7.
             const isBusySlot = (profId, day, periodId) =>
                 profId !== null && profId !== undefined &&
                 busyKeys.has(profId + "|" + day + "|" + (periodId - 1));
@@ -2110,7 +2157,8 @@ class HtmlOutput:
                 (data.profNames || {})[profId] || "—";
 
             // Số tiết của một offset (0-based), cùng quy ước với periodNumber:
-            // sáng offset 0..5 = tiết 1..6, chiều offset 7..12 = tiết 7..12.
+            // sáng offset 0..5 = tiết 1..6, chiều offset 7..12 = tiết 7..12
+            // (offset 6 là nghỉ trưa nên không bao giờ được vẽ ở đây).
             const periodNumber = offset =>
                 (offset < data.lunch ? offset + 1 : offset);
 
@@ -2153,6 +2201,8 @@ class HtmlOutput:
                 periodTime(run[run.length - 1], "end")
             ).join(", ");
 
+            // period_ids là periodId 1-based -> trừ 1 về offset rồi tách dải bận,
+            // giống getBusyChip phía Python (mức phạt mềm B = 0.2 điểm/lớp).
             const busyChip = (periodIds) => {
                 const runs = busyRuns(periodIds.map(periodId => periodId - 1));
                 return '<div class="slot-warning slot-warning--soft" title="' +
@@ -2162,6 +2212,10 @@ class HtmlOutput:
             };
 
             // Huy hiệu P/G/N của một lớp học ở thế hệ đang xem.
+            // bits = bước "b" trong payload: chuỗi 0/1, mỗi lớp 3 ký tự theo thứ tự
+            // P, G, N; offset = indexLop * letters.length = indexLop * 3 nên cờ của
+            // tiêu chí i lấy tại bits.charAt(offset + i) — cùng cách đánh chỉ số với
+            // criterias[ci + i] phía Python. letters.length = len(Criteria.weights).
             const criteriaBadges = (bits, offset, busy) => {
                 let html = '<div class="crits">';
                 for (let i = 0; i < letters.length; i++) {
@@ -2184,6 +2238,8 @@ class HtmlOutput:
                 return html + "</div>";
             };
 
+            // Thẻ nội dung một ô: tên môn, tên GV, nhãn số tiết/"Tiếp tiết", rồi huy hiệu.
+            // offset là vị trí bộ cờ 3 ký tự của lớp trong step.b (indexLop * 3).
             const courseCard = (courseClass, profId, bits, offset, continued, busy) => {
                 let html = '<div class="course">' + esc(courseClass.course) +
                     '</div><div class="prof">' + esc(profNameOf(profId)) + "</div>";
@@ -2198,6 +2254,11 @@ class HtmlOutput:
             };
 
             // Sắp các lớp học vào ô (phòng, ngày, tiết) như phần dựng bảng.
+            // step.s[index] = [room, day, time] với cả ba đều 0-based (đúng như mã
+            // nhiễm sắc thể); bước sang quy ước bảng phải cộng 1 ở chiều ngày và giờ:
+            //   key      = roomId | (day + 1)      -> cột 1..cols-1 (cols = DAYS_NUM+1 = 6)
+            //   startPeriod = time + 1             -> hàng 1..rows-1 (rows = DAY_HOURS+1 = 14)
+            // roomId vẫn giữ 0-based vì bảng phòng được duyệt theo index cấu hình.
             const collectSlots = step => {
                 const slots = new Map();
                 step.s.forEach((slot, index) => {
@@ -2208,6 +2269,7 @@ class HtmlOutput:
                     // giảng viên được gán ở thế hệ này (ID, đổi theo thế hệ)
                     const profId = step.v ? step.v[index] : courseClass.prof;
                     // Các tiết của lớp rơi vào khung bận của giảng viên được giao.
+                    // periodId tăng dần theo offset trong lớp, dừng ở hàng rows-1 = 13.
                     const busyPeriods = [];
                     for (let offset = 0; offset < courseClass.dur; offset++) {
                         const periodId = startPeriod + offset;
@@ -2226,6 +2288,7 @@ class HtmlOutput:
                             course: courseClass,
                             prof: profId,
                             bits: step.b,
+                            // vị trí bộ cờ P/G/N của lớp này trong chuỗi "b": 3 ký tự/lớp
                             offset: index * letters.length,
                             busy: busyPeriods.indexOf(periodId) >= 0,
                             busyPeriods: busyPeriods,
@@ -2239,6 +2302,10 @@ class HtmlOutput:
             };
 
             // Số tiết liền kề chỉ do một lớp chiếm, không vượt qua bảng hay ô nghỉ trưa.
+            // Bản sao phía trình duyệt của HtmlOutput.mergeSpan: dải chỉ mở khi ô kế
+            // tiếp có đúng MỘT lớp (length === 1, tức không trùng phòng), không chạm
+            // hàng nghỉ trưa lunchPeriod = data.lunch + 1 = 7, không quá dur tiết của
+            // lớp và không quá hàng cuối data.rows - 1 = 13.
             const mergeSpan = (entry, periodId, bucket, lunchPeriod) => {
                 if (periodId === lunchPeriod) return 1;
                 const last = Math.min(
@@ -2253,8 +2320,12 @@ class HtmlOutput:
                 return span;
             };
 
+            // Bảng một phòng ở thế hệ đang xem: hàng = periodId 1..rows-1 (1..13),
+            // cột = dayId 1..cols-1 (1..5); cols = DAYS_NUM + 1 = 6 vì cột 0 là nhãn tiết.
+            // covered[day] ghi các hàng đã bị ô rowspan ở trên nuốt nên không xuất lại.
             const roomTable = (roomId, slots) => {
                 const roomName = data.rooms[roomId];
+                // nghỉ trưa: offset 6 -> hàng 7 của bảng
                 const lunchPeriod = data.lunch + 1;
                 const covered = [];
                 for (let day = 1; day < data.cols; day++) {
@@ -2262,6 +2333,7 @@ class HtmlOutput:
                 }
                 let rows = "";
 
+                // hàng 1..13 tương ứng offset 0..12; hàng 7 là nghỉ trưa
                 for (let periodId = 1; periodId < data.rows; periodId++) {
                     let cellsHtml = "";
                     for (let dayId = 1; dayId < data.cols; dayId++) {
@@ -2277,11 +2349,13 @@ class HtmlOutput:
                             const entry = entries[0];
                             const span = mergeSpan(
                                 entry, periodId, bucket, lunchPeriod);
+                            // chỉ liệt kê tiết bận nằm trong dải vừa gộp của ô này
                             const busyPeriods = (entry.busyPeriods || []).filter(
                                 period => period >= periodId &&
                                     period < periodId + span
                             );
                             const soft = busyPeriods.length > 0;
+                            // true = ô đầu tiên của lớp; ô sau chỉ ghi nhãn "Tiếp tiết"
                             const first = entry.start === periodId;
                             cellsHtml += '<td class="slot filled' +
                                 (soft ? " busy-soft" : "") + '"' +
@@ -2296,11 +2370,14 @@ class HtmlOutput:
                                 ) +
                                 "</div></td>";
                             for (let period = periodId; period < periodId + span; period++) {
+                                // các hàng đã hiển thị trong ô rowspan: bỏ khi gặp lại
                                 covered[dayId].add(period);
                             }
                             continue;
                         }
 
+                        // Nhiều lớp trong cùng ô = trùng phòng (vi phạm P): không gộp
+                        // rowspan, xếp chồng tất cả trong một slot-stack.
                         let cards = "";
                         let stackBusy = false;
                         if (entries.length > 1) {
@@ -2323,6 +2400,7 @@ class HtmlOutput:
                             '<div class="slot-stack">' + cards + "</div></td>";
                     }
 
+                    // periodId - 1 trả về offset 0-based; offset 6 là ô nghỉ trưa
                     const period = data.periods[periodId - 1] || ["", ""];
                     rows += "<tr" +
                         (periodId - 1 === data.lunch ? ' class="lunch"' : "") +
@@ -2355,6 +2433,10 @@ class HtmlOutput:
                 );
             };
 
+            // Bảng thông số của thế hệ đang chọn ở đầu khung lịch.
+            // step.n[i] = số lớp ĐẠT tiêu chí i, step.total = tổng số lớp, nên
+            // số vi phạm của tiêu chí i là total - n[i]; tổng ba tiêu chí là
+            // "x vi phạm". step.f là fitness đã chuẩn hoá trong [0, 1].
             const updateHead = step => {
                 const percent = Math.max(0, Math.min(1, step.f)) * 100;
                 const violations = step.n.reduce(
@@ -2388,6 +2470,7 @@ class HtmlOutput:
                     step.p + " cá thể · không cải thiện " + step.z);
             };
 
+            // Chọn thế hệ thứ index: dựng lại bảng phòng học từ step.s + step.b.
             const select = (index, focus) => {
                 const step = data.steps[index];
                 if (!step) return;
@@ -2414,6 +2497,8 @@ class HtmlOutput:
                 cell.addEventListener("click", () => select(index, false));
             });
 
+            // Phím điều hướng lưới thế hệ: trái/phải đổi 1 ô, lên/xuống nhảy đúng
+            // một hàng (số ô mỗi hàng = columns(), mặc định 10 theo CSS).
             grid.addEventListener("keydown", event => {
                 const activeIndex = cells.findIndex(
                     cell => cell.getAttribute("aria-selected") === "true"
@@ -2440,7 +2525,17 @@ class HtmlOutput:
 
     @staticmethod
     def getCriteriaBadges(criterias, ci, busy=False):
-        """Tạo các huy hiệu tiêu chí (P/G/N, thêm B nếu dính khung bận) cho một lớp."""
+        """Dãy huy hiệu P/G/N (và B nếu dính ràng buộc mềm) của MỘT lớp học phần.
+
+        criterias là mảng cờ của nhiễm sắc thể (Schedule.criteria), còn ci là con
+        trỏ tới bộ 3 cờ của lớp đang xét: ci = k * 3 với k là số thứ tự của lớp
+        trong solution.classes. Cờ tiêu chí i đọc tại criterias[ci + i], thứ tự
+        i = 0,1,2 trùng thứ tự Criteria.weights nên letter/OK_DESCR/FAIL_DESCR
+        tra theo cùng chỉ số i là đúng cặp.
+        Cờ False = vi phạm ràng buộc cứng, mất trọn Criteria.hardPenalty = 1.0
+        điểm của tiêu chí đó; huy hiệu B chỉ để hiển thị, mức phạt thật là
+        Criteria.busyPenalty = 0.2 điểm và chỉ tính một lần cho mỗi lớp.
+        """
         sb = ['<div class="crits">']
         for i, letter in enumerate(HtmlOutput.CRITERIAS):
             passed = bool(criterias[ci + i])
@@ -2473,7 +2568,11 @@ class HtmlOutput:
 
     @staticmethod
     def getCourseClass(cc, criterias, ci, professor=None, busy=False):
-        """Tạo nội dung HTML cho một ô lịch (môn học, giảng viên, tiêu chí)."""
+        """Nội dung HTML của một ô lịch ở tiết ĐẦU của lớp: môn, GV, số tiết, huy hiệu.
+
+        ci là con trỏ cờ k * 3 của chính lớp này (do generateTimeTable truyền
+        xuống) nên ô đầu và các ô "tiếp tiết" hiển thị cùng bộ P/G/N.
+        """
         professor_name = professor.Name if professor is not None else "—"
         sb = [
             '<div class="course">', html.escape(cc.Course.Name), '</div>',
@@ -2490,7 +2589,12 @@ class HtmlOutput:
 
     @staticmethod
     def getContinuedClass(cc, criterias, ci, professor=None):
-        """Phiên bản rút gọn cho các tiết tiếp theo của lớp đang kéo dài."""
+        """Bản rút gọn cho các tiết sau của lớp nhiều tiết, gắn nhãn 'Tiếp tiết'.
+
+        Bình thường mergeSpan gộp các tiết liền nhau vào ô đầu bằng rowspan nên
+        bản này chỉ hiện khi chuỗi bị chặn (trùng phòng, chạm ô nghỉ trưa, chạm
+        hàng cuối bảng 13). Bộ cờ P/G/N vẫn lấy từ cùng ci của lớp.
+        """
         return "".join([
             '<div class="course">', html.escape(cc.Course.Name), '</div>',
             '<div class="prof">', html.escape(professor.Name if professor is not None else "—"), '</div>',
@@ -2500,7 +2604,20 @@ class HtmlOutput:
 
     @staticmethod
     def generateTimeTable(solution):
-        """Dựng lịch theo phòng/ngày/tiết, giữ mọi lớp kể cả khi bị trùng phòng."""
+        """Dựng bảng tra entries_by_slot[(roomId, dayId)][periodId] cho lời giải.
+
+        solution.classes lưu mã nhiễm sắc thể: lớp -> hashCode của ô (ngày, giờ,
+        phòng). Reservation.parse đổi mã đó về toạ độ 0-based, còn bảng lịch dùng
+        chỉ số 1-based nên phải cộng thêm 1:
+          dayId     = reservation.Day + 1   -> cột 1..5 (cột 0 là nhãn "Tiết")
+          startPeriod = reservation.Time + 1 -> hàng 1..13 (hàng 0 là tiêu đề)
+        roomId giữ nguyên 0-based vì phòng được duyệt theo index cấu hình.
+        Một lớp Duration tiết được ghi vào Duration hàng liên tiếp kể từ
+        startPeriod, dừng khi periodId >= ROOM_ROW_NUMBER (= 14) tức không vượt
+        quá hàng 13. Lớp trùng phòng KHÔNG bị loại: nhiều entry cùng nằm trong
+        một list và getScheduleTable sẽ xếp chồng chúng lên nhau.
+        ci chạy theo lớp, mỗi lớp cách nhau len(CRITERIAS) = 3 cờ (P, G, N).
+        """
         ci = 0
 
         entries_by_slot = defaultdict(lambda: defaultdict(list))
@@ -2511,11 +2628,13 @@ class HtmlOutput:
             reservation = Reservation.parse(reservation_index)
 
             # toạ độ của ô thời gian - không gian
+            # Day/Time là 0-based -> cộng 1 thành cột/ngày và dòng của bảng
             dayId = reservation.Day + 1
             startPeriod = reservation.Time + 1
             roomId = reservation.Room
             duration = cc.Duration
             professor = solution.professors.get(cc) if hasattr(solution, "professors") else None
+            # busyPeriods trả về periodId 1-based, dùng riêng cho ràng buộc mềm B
             busy_periods = HtmlOutput.busyPeriods(
                 professor, reservation.Day, startPeriod, duration)
 
@@ -2530,23 +2649,33 @@ class HtmlOutput:
             }
 
             for offset in range(duration):
+                # offset 0..duration-1 tính từ tiết đầu; periodId vẫn là 1-based
                 periodId = startPeriod + offset
                 if periodId >= HtmlOutput.ROOM_ROW_NUMBER:
                     break
                 entries_by_slot[(roomId, dayId)][periodId].append(entry)
 
+            # chuyển sang bộ cờ của lớp kế tiếp: mỗi lớp chiếm 3 ô (P, G, N)
             ci += len(HtmlOutput.CRITERIAS)
 
         return entries_by_slot
 
     @staticmethod
     def busyPeriods(professor, day, startPeriod, duration):
-        """Các tiết (periodId 1-based) của lớp rơi vào khung giảng viên bận."""
+        """Danh sách tiết của một lớp trùng khung giờ bận của giảng viên được giao.
+
+        Đây chính là nguồn đếm vi phạm ràng buộc mềm B. Kết quả trả về theo
+        periodId 1-based (khớp số hàng của bảng lịch), còn professor.BusySlots
+        lưu (ngày, offset) với offset 0-based, nên phép tra phải lùi một:
+            offset = startPeriod - 1 + offset_in_class
+        Bắt đầu từ offset = 0 đến duration - 1; ngày ở đây vẫn là ngày 0-based.
+        """
         if professor is None or not professor.BusySlots:
             return []
         return [
             startPeriod + offset
             for offset in range(duration)
+            # startPeriod - 1: đổi periodId (1-based) về offset (0-based) để so BusySlots
             if (day, startPeriod - 1 + offset) in professor.BusySlots
         ]
 
@@ -2556,6 +2685,9 @@ class HtmlOutput:
 
         Khung nghỉ trưa bị loại và không được nối liền với hai buổi bên cạnh,
         nhờ vậy mỗi dải tương ứng đúng một khoảng giờ đồng nhất.
+        Hai offset cùng dải khi offset sau = offset trước + 1; vì offset 6
+        (nghỉ trưa) bị loại nên dải sáng (0..5) và dải chiều (7..12) không bao
+        giờ dính nhau dù 6 + 1 = 7 liền kề về chỉ số.
         """
         runs = []
         for offset in sorted({offset for offset in offsets}):
@@ -2569,7 +2701,11 @@ class HtmlOutput:
 
     @staticmethod
     def formatBusyRuns(runs):
-        """Nhãn gọn 'tiết 2-3, 7' từ các dải offset, khớp số tiết của bảng lịch."""
+        """Nhãn gọn 'tiết 2-3, 7' từ các dải offset, khớp số tiết của bảng lịch.
+
+        Số tiết lấy theo Constant.periodNumber(offset): sáng offset 0..5 thành
+        tiết 1..6, chiều offset 7..12 thành tiết 7..12 (không đếm ô nghỉ trưa).
+        """
         parts = []
         for run in runs:
             first = Constant.periodNumber(run[0])
@@ -2581,7 +2717,12 @@ class HtmlOutput:
 
     @staticmethod
     def formatBusyRunTimes(runs):
-        """Khung giờ của từng dải bận, VD '9:50–11:40, 13:00–13:50'."""
+        """Khung giờ của từng dải bận, VD '9:50–11:40, 13:00–13:50'.
+
+        start = periodStart(offset đầu dải); end = periodStart(offset cuối dải)
+        + PERIOD_MINUTES (50 phút). Các tiết trong buổi liền nhau nên chỉ cần
+        hai mốc này là phủ kín dải; dải không vắt qua nghỉ trưa (xem splitBusyRuns).
+        """
         parts = []
         for run in runs:
             start = Constant.periodStart(run[0])
@@ -2592,7 +2733,12 @@ class HtmlOutput:
 
     @staticmethod
     def getBusyChip(period_ids):
-        """Nhãn cam báo một lớp bị xếp vào khung bận của giảng viên (ràng buộc mềm)."""
+        """Nhãn cam báo một lớp bị xếp vào khung bận của giảng viên (ràng buộc mềm).
+
+        period_ids là periodId 1-based nên phải trừ 1 để về offset 0-based trước
+        khi tách dải; số điểm trừ khi tính fitness là busyPenalty = 0.2 cho mỗi
+        lớp bị bận, nhỏ hơn hardPenalty = 1.0 của một vi phạm P/G/N.
+        """
         runs = HtmlOutput.splitBusyRuns(period_id - 1 for period_id in period_ids)
         label = HtmlOutput.formatBusyRuns(runs)
         times = HtmlOutput.formatBusyRunTimes(runs)
@@ -2609,6 +2755,13 @@ class HtmlOutput:
 
     @staticmethod
     def getHtmlCell(content, busy=False, soft=False, title="", rowspan=None):
+        """Một ô <td> của bảng lịch: rỗng, rỗng-kèm-tô-bận, hoặc có nội dung.
+
+        content = None -> ô trống; nếu ô đó rơi vào khung bận của giảng viên thì
+        thêm lớp "busy" (tô mờ) cùng title ghi số tiết. content có nội dung -> ô
+        "filled", và soft=True thêm "busy-soft" (cam) báo vi phạm ràng buộc mềm B.
+        rowspan chỉ được ghi khi lớn hơn 1, tức ô gộp nhiều tiết liên tiếp.
+        """
         span = f' rowspan="{rowspan}"' if rowspan and rowspan > 1 else ""
         if content is None:
             if not busy:
@@ -2621,9 +2774,19 @@ class HtmlOutput:
 
     @staticmethod
     def mergeSpan(entry, periodId, day_entries, lunchPeriod):
-        """Số tiết liền kề chỉ do một lớp chiếm, không vượt qua bảng hay ô nghỉ trưa."""
+        """Số hàng liên tiếp mà MỘT lớp độc chiếm, dùng làm giá trị rowspan.
+
+        Điều kiện mở rộng dải (duyệt periodId + span tới hết lớp):
+          - ô kế tiếp chỉ có đúng một lớp: len(day_entries[nextPeriod]) == 1;
+            nếu có 2 lớp trở lên nghĩa là trùng phòng -> không gộp, để xếp chồng;
+          - dải không chạm ô nghỉ trưa lunchPeriod = LUNCH_PERIOD + 1 = 7;
+          - dải không quá số tiết của lớp: last = entry["start"] + duration - 1;
+          - dải không quá hàng cuối bảng: ROOM_ROW_NUMBER - 1 = 13.
+        Tiết nghỉ trưa luôn trả 1 (không bao giờ bị gộp vào lớp nào).
+        """
         if periodId == lunchPeriod:
             return 1
+        # giới hạn dưới của dải: tiết cuối của lớp, hoặc hàng 13 của bảng
         last = min(entry["start"] + entry["duration"] - 1,
                    HtmlOutput.ROOM_ROW_NUMBER - 1)
         span = 1
@@ -2632,6 +2795,7 @@ class HtmlOutput:
             if nextPeriod == lunchPeriod:
                 break
             if len(day_entries.get(nextPeriod, ())) != 1:
+                # ô kế tiếp có 0 hoặc >= 2 lớp: hoặc hết lớp, hoặc trùng lịch -> dừng
                 break
             span += 1
         return span
@@ -2640,12 +2804,25 @@ class HtmlOutput:
     def getScheduleTable(key, entries_by_slot,
                          overlap_label="Trùng phòng", caption="",
                          busy_slots=None):
-        """Dựng bảng lịch theo ngày; các tiết liền nhau cùng một lớp gộp thành một ô rowspan."""
+        """Dựng một bảng lịch 13 hàng x 5 ngày cho MỘT dòng dữ liệu (phòng hoặc GV).
+
+        key là roomId (bảng phòng học) hoặc profId (bảng giảng viên); ô tương ứng
+        lấy từ entries_by_slot[(key, dayId)][periodId]. Quy ước chỉ số của bảng:
+          periodId = offset 0-based + 1, chạy 1..ROOM_ROW_NUMBER-1 = 1..13
+          dayId    = ngày 0-based + 1,    chạy 1..ROOM_COLUMN_NUMBER-1 = 1..5
+          hàng nghỉ trưa là periodId = LUNCH_PERIOD + 1 = 7
+        busy_slots là tập (ngày, offset) 0-based của giảng viên, chỉ dùng để tô ô
+        trống; vì bảng đếm 1-based nên phải trừ 1 ở cả hai chiều khi tra cứu.
+        Các tiết liền nhau cùng một lớp được gộp thành một ô rowspan nhờ mergeSpan,
+        còn ô có nhiều lớp (trùng lịch) KHÔNG gộp mà xếp chồng trong slot-stack.
+        """
         rows = []
         busy_slots = busy_slots or set()
+        # các hàng đã bị một ô rowspan "nuốt" ở ngày đó, cần bỏ khi gặp lại
         covered = {dayId: set() for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER)}
-        lunchPeriod = Constant.LUNCH_PERIOD + 1
+        lunchPeriod = Constant.LUNCH_PERIOD + 1  # ô nghỉ trưa nằm ở hàng 7
 
+        # hàng 1..13 (hàng 0 là tiêu đề), cột 1..5 (cột 0 là nhãn tiết)
         for periodId in range(1, HtmlOutput.ROOM_ROW_NUMBER):
             cells = []
             for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER):
@@ -2654,6 +2831,7 @@ class HtmlOutput:
                 day_entries = entries_by_slot.get((key, dayId), {})
                 slot_entries = day_entries.get(periodId, [])
                 if not slot_entries:
+                    # ô trống: quay về offset 0-based để so với BusySlots của giảng viên
                     offset = periodId - 1
                     is_busy = (dayId - 1, offset) in busy_slots
                     cells.append(HtmlOutput.getHtmlCell(
@@ -2667,6 +2845,7 @@ class HtmlOutput:
                     entry = slot_entries[0]
                     span = HtmlOutput.mergeSpan(
                         entry, periodId, day_entries, lunchPeriod)
+                    # chỉ đếm tiết bận nằm trong đúng dải vừa gộp [periodId, periodId+span)
                     busy_periods = [
                         period for period in (entry.get("busy_periods") or ())
                         if periodId <= period < periodId + span
@@ -2680,6 +2859,7 @@ class HtmlOutput:
                                 f'{entry["continued"]}</div>')
                     cells.append(HtmlOutput.getHtmlCell(
                         chip + card, soft=bool(busy_periods), rowspan=span))
+                    # đánh dấu span-1 hàng kế tiếp đã hiển thị xong trong ô này
                     covered[dayId].update(range(periodId, periodId + span))
                     continue
 
@@ -2707,6 +2887,7 @@ class HtmlOutput:
                         " busy-soft" if any_busy else "", content)
                 )
 
+            # hàng 7 = periodId - 1 == LUNCH_PERIOD (offset 6) -> dán nhãn nghỉ trưa
             is_lunch = periodId - 1 == Constant.LUNCH_PERIOD
             rows.append(
                 '<tr{}>'.format(' class="lunch"' if is_lunch else '')
@@ -2739,7 +2920,11 @@ class HtmlOutput:
 
     @staticmethod
     def getRoomTable(room, roomId, entries_by_slot):
-        """Bảng thời khóa biểu của một phòng học."""
+        """Bảng thời khóa biểu của MỘT phòng học (kèm khung và tiêu đề phòng).
+
+        roomId là key 0-based trong entries_by_slot của generateTimeTable; ô
+        "trùng" ở đây là hai lớp cùng phòng cùng tiết -> vi phạm ràng buộc P.
+        """
         table = HtmlOutput.getScheduleTable(
             roomId,
             entries_by_slot,
@@ -2764,13 +2949,24 @@ class HtmlOutput:
 
     @staticmethod
     def generateProfessorTimeTable(solution):
-        """Dựng lịch theo giảng viên/ngày/tiết; mỗi ô ghi môn học và phòng."""
+        """Dựng entries_by_slot[(profId, dayId)][periodId] theo góc nhìn giảng viên.
+
+        Cùng phép đổi trục với generateTimeTable: dayId = reservation.Day + 1 và
+        startPeriod = reservation.Time + 1 (bảng 1-based, mã nhiễm sắc thể 0-based).
+        Khác biệt: key là ID giảng viên được GA gán cho lớp (thay vì phòng), mỗi ô
+        ghi tên môn + phòng, và lớp của cùng một GV trùng nhau sẽ xếp chồng với nhãn
+        "Trùng lịch giảng viên" (vi phạm ràng buộc G).
+        busy_classes đếm số LỚP của GV có ít nhất một tiết rơi vào khung bận của
+        chính họ (ràng buộc mềm B, phạt 0.2 điểm/lớp ở fitness) — mỗi lớp chỉ bị
+        đếm một lần dù trùng mấy tiết.
+        """
         entries_by_slot = defaultdict(lambda: defaultdict(list))
         busy_classes = defaultdict(int)   # profId -> số lớp dính khung bận
 
         for cc, reservation_index in solution.classes.items():
             reservation = Reservation.parse(reservation_index)
 
+            # Day/Time 0-based trong mã -> cộng 1 thành cột/dòng của bảng
             dayId = reservation.Day + 1
             startPeriod = reservation.Time + 1
             professor = solution.professors.get(cc) if hasattr(solution, "professors") else None
@@ -2779,6 +2975,7 @@ class HtmlOutput:
             busy_periods = HtmlOutput.busyPeriods(
                 professor, reservation.Day, startPeriod, duration)
             if busy_periods:
+                # một lớp chỉ bị tính một lần cho ràng buộc mềm B
                 busy_classes[profId] += 1
 
             room = solution.configuration.getRoomById(reservation.Room)
@@ -2807,6 +3004,7 @@ class HtmlOutput:
             }
 
             for offset in range(duration):
+                # dải tiết 1-based của lớp, cắt ở hàng 13 (ROOM_ROW_NUMBER - 1)
                 periodId = startPeriod + offset
                 if periodId >= HtmlOutput.ROOM_ROW_NUMBER:
                     break
@@ -2817,7 +3015,13 @@ class HtmlOutput:
     @staticmethod
     def getProfessorTable(professor, profId, entries_by_slot,
                           total_hours, number_of_courses, busy_classes=0):
-        """Bảng thời khóa biểu của một giảng viên."""
+        """Bảng thời khóa biểu của một giảng viên, kèm badge tổng kết tuần.
+
+        Bảng dùng chung getScheduleTable nhưng với busy_slots = professor.BusySlots
+        (tập (ngày, offset) 0-based) để tô mờ những ô trống nằm trong giờ bận;
+        total_hours là tổng Duration các lớp được giao, number_of_courses là số
+        môn khác nhau, busy_classes là số lớp dính ràng buộc mềm B.
+        """
         table = HtmlOutput.getScheduleTable(
             profId,
             entries_by_slot,
@@ -2854,7 +3058,11 @@ class HtmlOutput:
 
     @staticmethod
     def getProfessorSections(solution):
-        """Tạo các bảng lịch giảng dạy của từng giảng viên."""
+        """Chuỗi các bảng lịch của từng giảng viên cho tab "Theo giảng viên".
+
+        Số tiết/tuần của một GV = tổng Duration các lớp được GA gán cho họ;
+        số môn = số tên môn khác nhau. Giảng viên không nhận lớp nào bị bỏ qua.
+        """
         configuration = solution.configuration
         entries_by_slot, busy_classes = HtmlOutput.generateProfessorTimeTable(solution)
         if not entries_by_slot:
@@ -2898,7 +3106,11 @@ class HtmlOutput:
 
     @staticmethod
     def getRoomSections(solution):
-        """Tạo các bảng thời khóa biểu của một lời giải (phòng học)."""
+        """Toàn bộ các bảng phòng học của một lời giải, xếp theo roomId 0..nr-1.
+
+        Duyệt đủ numberOfRooms phòng nên phòng trống vẫn xuất hiện, giúp người
+        xem thấy rõ phòng nào chưa được dùng.
+        """
         configuration = solution.configuration
         nr = configuration.numberOfRooms
 
@@ -2921,7 +3133,12 @@ class HtmlOutput:
 
     @staticmethod
     def _snapshotSolution(entry):
-        """Chuyển một bản ghi lịch sử thành đối tượng đủ trường để vẽ lịch."""
+        """Bọc một bản ghi lịch sử thành "lời giải" đủ trường để tái dùng hàm vẽ.
+
+        Các bản ghi của Trace lưu đúng classes / professors / criteria /
+        configuration / fitness của thế hệ đó, nên chỉ cần SimpleNamespace là
+        generateTimeTable và getRoomSections chạy được như với Schedule thật.
+        """
         return SimpleNamespace(
             configuration=entry["configuration"],
             classes=entry["classes"],
@@ -2932,7 +3149,14 @@ class HtmlOutput:
 
     @staticmethod
     def _criteriaCounts(entry):
-        """Trả về (số lớp đạt từng tiêu chí, tổng số lớp) của một bản ghi."""
+        """Đếm số lớp ĐẠT từng tiêu chí P/G/N trong một bản ghi lịch sử.
+
+        Mảng cờ lưu class-major, 3 cờ mỗi lớp theo thứ tự P, G, N, nên cờ tiêu
+        chí i của lớp j nằm tại criteria[j * step + i] với step = 3.
+        total = len(criteria) // 3 = số lớp của bài toán; counts[i] đếm số lớp có
+        cờ True, vì vậy số vi phạm của tiêu chí i là total - counts[i].
+        Trace đã tính sẵn counts/total thì dùng trực tiếp, không đếm lại.
+        """
         criteria = entry.get("criteria")
         step = len(HtmlOutput.CRITERIAS)
         total = entry.get("total")
@@ -2953,10 +3177,13 @@ class HtmlOutput:
 
     @staticmethod
     def getStepsData(history):
-        """Dữ liệu gọn của từng thế hệ nhúng vào trang.
+        """Dữ liệu gọn của từng thế hệ nhúng vào trang (khối <script id="step-data">).
 
         Trình duyệt dùng mảng này để tự dựng thời khóa biểu của thế hệ được
         bấm, nhờ đó file HTML chỉ nặng vài trăm KB thay vì hàng chục MB.
+
+        payload lưu theo quy ước 0-based của model (Room/Day/Time và BusySlots),
+        JavaScript sẽ tự cộng 1 khi vẽ bảng — xem collectSlots trong PAGE_SCRIPT.
         """
         if not history:
             return ""
@@ -2996,6 +3223,7 @@ class HtmlOutput:
                         for day, period in professor.BusySlots
                     )
 
+        # step_size = 3 cờ / lớp theo đúng thứ tự Criteria.weights (P, G, N)
         step_size = len(HtmlOutput.CRITERIAS)
         steps = []
         for entry in history:
@@ -3003,6 +3231,9 @@ class HtmlOutput:
             entry_classes = entry.get("classes") or {}
             criteria = entry.get("criteria")
 
+            # "b": chuỗi cờ 0/1 nối liền, mỗi lớp 3 ký tự, xếp theo thứ tự "order".
+            # index là vị trí của lớp trong bản ghi đang xét, target là vị trí trong
+            # order; cờ của tiêu chí offset đọc tại criteria[index * step_size + offset].
             flags = ["0" * step_size for _ in order]
             for index, course_class in enumerate(entry_classes):
                 target = position.get(course_class)
@@ -3014,6 +3245,8 @@ class HtmlOutput:
                     if index * step_size + offset < len(criteria)
                 )
 
+            # "s": vị trí xếp của từng lớp [phòng, ngày, giờ] — GIỮ NGUYÊN 0-based
+            # như mã nhiễm sắc thể; JavaScript cộng 1 khi tra hàng/cột của bảng.
             slots = [None] * len(order)
             for course_class, reservation_index in entry_classes.items():
                 target = position.get(course_class)
@@ -3032,6 +3265,10 @@ class HtmlOutput:
                 for course_class in order
             ]
 
+            # một bước trong lưới thế hệ: g=thế hệ, f=fitness, t=số giây chạy,
+            # n=số lớp đạt từng tiêu chí P/G/N, total=tổng số lớp, p=dân số,
+            # z=số thế hệ liên tiếp không cải thiện, b=chuỗi cờ, s=vị trí xếp lớp,
+            # v=ID giảng viên được gán cho từng lớp ở thế hệ này
             steps.append({
                 "g": int(entry.get("generation", len(steps) + 1)),
                 "f": float(entry.get("fitness", 0.0)),
@@ -3045,6 +3282,14 @@ class HtmlOutput:
                 "v": prof_ids,
             })
 
+        # "phần cứng" của lưới mà JavaScript cần để dựng lại bảng lịch:
+        #   periods[i] ứng với hàng i+1 (PERIODS/PERIOD_TIMES đã chèn phần tử rỗng
+        #   ở index 0 nên tra theo periodId trực tiếp)
+        #   lunch = LUNCH_PERIOD = 6 là OFFSET 0-based của ô nghỉ trưa; hàng trong
+        #           bảng là lunch + 1 = 7
+        #   rows  = ROOM_ROW_NUMBER    = 14 -> vòng hàng chạy 1..13
+        #   cols  = ROOM_COLUMN_NUMBER = 6  -> vòng cột chạy 1..5
+        #   busy[profId] = danh sách [ngày, offset] 0-based của giảng viên
         payload = {
             "letters": list(HtmlOutput.CRITERIAS),
             "ok": list(HtmlOutput.OK_DESCR),
@@ -3069,7 +3314,14 @@ class HtmlOutput:
 
     @staticmethod
     def getFitnessChart(history):
-        """Tạo biểu đồ đường fitness qua các thế hệ bằng SVG nội tuyến."""
+        """Biểu đồ SVG nội tuyến: fitness của cá thể tốt nhất qua từng thế hệ.
+
+        Fitness của một nhiễm sắc thể = (điểm cứng − phạt mềm) / (3 × số lớp),
+        trong đó điểm cứng là tổng 3 cờ P/G/N mỗi lớp (mỗi cờ False bị trừ
+        hardPenalty = 1.0) và phạt mềm = 0.2 cho mỗi lớp dính khung bận; vì thế
+        1.0 là lịch hoàn hảo và giá trị luôn nằm trong [0, 1] (values kẹp clamp).
+        Trục dọc chỉ vẽ quanh dải dữ liệu thực tế để nhìn rõ biến động nhỏ.
+        """
         if not history:
             return ""
 
@@ -3084,6 +3336,8 @@ class HtmlOutput:
         ]
 
         # Thu gọn trục dọc quanh dải fitness thực tế để thấy rõ biến động.
+        # padding = max(0.005, 15% độ rộng dải); dải quá hẹp (< 0.05) thì mở
+        # thành ±0.025 quanh giữa, cuối cùng làm tròn xuống/lên 2 chữ số.
         data_min = min(values)
         data_max = max(values)
         padding = max(0.005, (data_max - data_min) * 0.15)
@@ -3099,8 +3353,11 @@ class HtmlOutput:
             axis_min = max(0.0, axis_min - 0.01)
             axis_max = min(1.0, axis_max + 0.01)
         axis_span = axis_max - axis_min
+        # số thập phân của nhãn trục: dải càng hẹp càng cần nhiều chữ số
         axis_decimals = 2 if axis_span < 0.02 else (1 if axis_span < 0.5 else 0)
 
+        # hệ quy chiếu SVG: vùng vẽ rộng plot_width, cao plot_height bên trong
+        # lề left/right/top/bottom; baseline là cạnh dưới của vùng vẽ
         width, height = 1000, 340
         left, right, top, bottom = 58, 22, 28, 52
         plot_width = width - left - right
@@ -3108,11 +3365,16 @@ class HtmlOutput:
         baseline = top + plot_height
 
         def x_for(index):
+            """Hoành độ của điểm thứ index: chia đều plot_width cho count-1 khoảng."""
             if count <= 1:
                 return left + plot_width / 2
             return left + (index / (count - 1)) * plot_width
 
         def y_for(value):
+            """Trục tung đảo chiều: axis_max ở cạnh trên (top), axis_min ở baseline.
+
+            y = top + (axis_max - value) / axis_span * plot_height
+            """
             return top + (axis_max - value) / axis_span * plot_height
 
         points = [
@@ -3120,12 +3382,15 @@ class HtmlOutput:
             for index, value in enumerate(values)
         ]
         line_points = " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+        # vùng tô đậm dưới đường: xuống baseline ở điểm đầu và điểm cuối rồi đóng
         area_path = (
             f"M {points[0][0]:.2f} {baseline:.2f} "
             + " ".join(f"L {x:.2f} {y:.2f}" for x, y in points)
             + f" L {points[-1][0]:.2f} {baseline:.2f} Z"
         )
 
+        # 5 đường ngang chia đều trục dọc: giá trị mỗi đường = axis_min +
+        # axis_span * step / 4 (step = 0..4); nhãn hiển thị theo phần trăm
         grid = []
         for step in range(5):
             value = axis_min + axis_span * step / 4
@@ -3140,6 +3405,7 @@ class HtmlOutput:
                 f'y="{y + 4:.2f}" text-anchor="end">{label}</text>'
             )
 
+        # 5 mốc dọc ở các vị trí 0%, 25%, 50%, 75%, 100% của dải thế hệ
         tick_indexes = sorted({
             0,
             round((count - 1) * .25),
@@ -3161,6 +3427,7 @@ class HtmlOutput:
                 f'Thế hệ {generation}</text>'
             )
 
+        # chỉ chấm điểm từng thế hệ khi mật độ vừa phải (2..160 điểm), tránh nhiễu
         dots = ""
         if 1 < count <= 160:
             dots = "".join(
@@ -3170,6 +3437,8 @@ class HtmlOutput:
                 for index, (x, y) in enumerate(points)
             )
 
+        # fitness cao nhất có thể không nằm ở thế hệ cuối (GA giữ cá thể tốt nhất),
+        # nên đánh dấu riêng khi nó khác thế hệ cuối
         best_index = max(range(count), key=lambda index: values[index])
         best_dot = ""
         if best_index != count - 1:
@@ -3196,6 +3465,7 @@ class HtmlOutput:
 
         max_class = "chart-stat is-max"
         final_class = "chart-stat is-final"
+        # ba thẻ tóm tắt: fitness đầu / cao nhất / cuối, đều nhân 100 thành phần trăm
         stats_html = (
             '<div class="chart-stats">'
             '<div class="chart-stat">'
@@ -3256,7 +3526,7 @@ class HtmlOutput:
 
     @staticmethod
     def getHistorySection(history):
-        """Tạo biểu đồ đánh giá fitness qua từng thế hệ."""
+        """Khối "Đánh giá": tiêu đề + phần dẫn + biểu đồ fitness của getFitnessChart."""
         if not history:
             return ""
 
@@ -3284,14 +3554,22 @@ class HtmlOutput:
 
     @staticmethod
     def getStepViolations(entry):
-        """Trả về (số vi phạm từng tiêu chí, tổng số vi phạm, tổng số lớp)."""
+        """Số vi phạm của một thế hệ: vi phạm_i = tổng số lớp - số lớp đạt tiêu chí i.
+
+        Tổng vi phạm = vi phạm P + vi phạm G + vi phạm N; mỗi vi phạm cứng làm
+        fitness mất 1/(3 x số lớp) điểm (hardPenalty = 1.0 chia cho tổng điểm tối đa).
+        """
         counts, total = HtmlOutput._criteriaCounts(entry)
         violations = [total - count for count in counts]
         return violations, sum(violations), total
 
     @staticmethod
     def getStepHeadHtml(entry, index):
-        """Phần đầu của khung hiển thị: thông số của thế hệ được chọn."""
+        """Tiêu đề động của khung lịch thế hệ (fitness, số lớp đạt P/G/N, vi phạm...).
+
+        percent = clamp(fitness, 0..1) * 100 vì fitness đã được chuẩn hoá trên
+        tổng điểm tối đa 3 x số lớp; pill chuyển sang màu đỏ khi count < total.
+        """
         counts, total = HtmlOutput._criteriaCounts(entry)
         violations = [total - count for count in counts]
         violation_total = sum(violations)
@@ -3342,10 +3620,17 @@ class HtmlOutput:
 
     @staticmethod
     def getStepsSection(history):
-        """Lưới các thế hệ: mỗi ô chứa fitness và số vi phạm, bấm để xem lịch."""
+        """Lưới các thế hệ: mỗi ô một bước tiến hoá, bấm ô để xem lịch của bước đó.
+
+        Ô nền xanh (is-perfect) là ô có tổng vi phạm P/G/N bằng 0; ô viền vàng
+        (is-best) là ô có fitness cao nhất — có thể khác thế hệ cuối.
+        Khung lịch dựng sẵn bằng thế hệ cuối để trang vẫn xem được khi JavaScript
+        không chạy, rồi mới được trình duyệt vẽ lại theo dữ liệu nhúng.
+        """
         if not history:
             return ""
 
+        # thế hệ có fitness cao nhất trong toàn bộ lịch sử (không chắc là thế hệ cuối)
         best_index = max(
             range(len(history)),
             key=lambda index: float(history[index].get("fitness", 0.0)),
@@ -3355,12 +3640,14 @@ class HtmlOutput:
         for index, entry in enumerate(history):
             violations, violation_total, total = HtmlOutput.getStepViolations(entry)
             fitness = float(entry.get("fitness", 0.0))
+            # fitness nằm trong [0, 1] (điểm/chuẩn hoá); kẹp lại rồi đổi ra phần trăm
             percent = max(0.0, min(1.0, fitness)) * 100
             generation = entry.get("generation", index + 1)
             elapsed = float(entry.get("elapsed", 0.0) or 0.0)
             population = int(entry.get("populationSize", 0) or 0)
             stagnation = int(entry.get("bestNotEnhance", 0) or 0)
 
+            # is-perfect = không còn vi phạm cứng nào; is-best = fitness cao nhất
             perfect = " is-perfect" if violation_total == 0 else ""
             best = " is-best" if index == best_index else ""
             selected = index == len(history) - 1
@@ -3522,6 +3809,9 @@ class HtmlOutput:
         Số tiết lấy từ Constant.periodNumber nên buổi chiều (offset 7..12) hiện
         là tiết 7..12 chứ không phải 8..13, và mỗi ngày được gộp gọn thành một
         cụm. VD: {(0,1),(0,2),(0,7),(0,8),(0,9),(0,10)} -> 'T2 tiết 2-3, 7-10'.
+
+        day và offset đều 0-based (đúng như Professor.BusySlots), vì thế nhãn ngày
+        tra WEEK_DAYS[day] trực tiếp còn offset đi qua splitBusyRuns để tách dải.
         """
         offsets_by_day = {}
         for day, offset in slots:
@@ -3543,7 +3833,14 @@ class HtmlOutput:
 
     @staticmethod
     def getSoftMetrics(solution):
-        """Trả về số lớp có ít nhất một tiết rơi vào khung giảng viên bận."""
+        """Đếm số lớp vi phạm ràng buộc mềm B, dùng cho chú thích kết quả.
+
+        Đây là bản mô phỏng lại phần phạt mềm của Schedule.calculateFitness:
+        với mỗi lớp, chỉ cần MỘT tiết trùng khung bận của giảng viên được giao là
+        lớp đó bị tính một lần (break), mức phạt busyPenalty = 0.2 điểm/lớp.
+        Vòng lặp ở đây dùng offset 0-based của reservation.Time — cùng quy ước
+        với isBusyAt(day, offset), khác với periodId 1-based của bảng lịch.
+        """
         classes = getattr(solution, "classes", None) or {}
         professors = getattr(solution, "professors", None) or {}
         busy_violations = 0
@@ -3553,6 +3850,7 @@ class HtmlOutput:
             if prof is None:
                 continue
             reservation = Reservation.parse(reservation_index)
+            # day/time là 0-based: kiểm tra dur tiết liên tiếp kể từ time
             day, time, dur = reservation.Day, reservation.Time, cc.Duration
             if any(prof.isBusyAt(day, time + off) for off in range(dur)):
                 busy_violations += 1
@@ -3561,7 +3859,11 @@ class HtmlOutput:
 
     @staticmethod
     def getSoftLegendHtml(solution):
-        """Dựng mục 'Ràng buộc mềm' hiển thị ký hiệu + trọng số + giá trị hiện tại."""
+        """Dựng mục 'Ràng buộc mềm' hiển thị ký hiệu + trọng số + giá trị hiện tại.
+
+        Mức phạt hiển thị lấy thẳng từ Criteria.busyPenalty (0.2) và so với
+        Criteria.hardPenalty (1.0) để người đọc hiểu vì sao GA luôn sửa P/G/N trước.
+        """
         metrics = HtmlOutput.getSoftMetrics(solution)
         classes = getattr(solution, "classes", None) or {}
         has_solution = bool(classes)
@@ -3600,8 +3902,15 @@ class HtmlOutput:
 
     @staticmethod
     def getBusyGridsHtml(configuration):
-        """Dựng các lưới lịch bận (click để chọn/bật tắt ô bận) cho từng giảng viên."""
+        """Dựng các lưới lịch bận (click để chọn/bật tắt ô bận) cho từng giảng viên.
+
+        Lưới chỉ có 12 cột tiết vì offset nghỉ trưa (LUNCH_PERIOD = 6) bị loại khỏi
+        `periods`; mỗi ô mang data-day / data-time là chỉ số 0-based đúng như
+        Professor.BusySlots, nên thu gom phía JavaScript gửi về server không phải
+        đổi hệ chỉ số.
+        """
         profs = sorted(configuration._professors.values(), key=lambda item: item.Id)
+        # 13 offset của một ngày, trừ ô nghỉ trưa -> 12 tiết dạy thực tế
         periods = [i for i in range(Constant.DAY_HOURS) if i != Constant.LUNCH_PERIOD]
         parts = []
         for prof in profs:
@@ -3656,7 +3965,12 @@ class HtmlOutput:
 
     @staticmethod
     def getInputSection(solution):
-        """Hiển thị dữ liệu đầu vào theo tab: giảng viên, lớp học phần, phòng học."""
+        """Tab "Dữ liệu đầu vào": bảng giảng viên / lớp học phần / phòng học.
+
+        Số tiết bận của mỗi giảng viên là len(BusySlots) — tập (ngày, offset)
+        0-based mà người dùng chọn trên lưới busy-grid; chính các ô này tạo ra vi
+        phạm ràng buộc mềm B khi GA xếp lớp của họ vào đó.
+        """
         configuration = solution.configuration
         classes = list(configuration.courseClasses)
 
@@ -3694,6 +4008,8 @@ class HtmlOutput:
             ])
         class_footer = ["", "Tổng cộng", sum(row[2] for row in class_rows)]
 
+        # sức chứa một phòng: TEACHING_HOURS (12 tiết dạy/ngày, đã trừ nghỉ trưa)
+        # x DAYS_NUM (5 ngày) = 60 giờ/tuần
         capacity = Constant.TEACHING_HOURS * Constant.DAYS_NUM
         rooms = sorted(configuration._rooms.values(), key=lambda item: item.Id)
         room_rows = [
@@ -3781,7 +4097,11 @@ class HtmlOutput:
 
     @staticmethod
     def getSettingsSection(parameters=None):
-        """Khối điều khiển thông số; nút Chạy nằm ngoài phần thu gọn."""
+        """Khối điều khiển thông số GA: sinh input cho từng trường trong FIELDS.
+
+        Giá trị hiển thị qua normalize() nên thiếu thông số vẫn có mặc định hợp lệ;
+        mỗi input mang min/max/step để trình duyệt chặn giá trị ngoài khoảng.
+        """
         values = normalize(parameters)
         fields = []
         for field in FIELDS:
@@ -3853,6 +4173,12 @@ class HtmlOutput:
 
     @staticmethod
     def getResult(solution, history=None, parameters=None):
+        """Điểm vào chính: dựng cả hai bộ bảng (phòng học, giảng viên) rồi xuất trang.
+
+        solution là nhiễm sắc thể tốt nhất sau khi GA kết thúc, history là ảnh chụp
+        từng thế hệ do Trace.get_history() trả về, parameters là thông số GA để
+        hiển thị lại trong khối điều khiển.
+        """
         room_sections = HtmlOutput.getRoomSections(solution)
         professor_sections = HtmlOutput.getProfessorSections(solution)
         return HtmlOutput.getDocument(
@@ -3866,7 +4192,14 @@ class HtmlOutput:
     @staticmethod
     def getDocument(solution, room_sections, professor_sections="",
                     history=None, parameters=None):
+        """Ghép mọi khối HTML thành một trang hoàn chỉnh, tự chứa CSS/JS.
+
+        Trình tự khối: header (chỉ số + điểm fitness) -> thông số GA -> chú thích
+        tiêu chí -> dữ liệu đầu vào -> thời khoá biểu cuối (tab phòng/giảng viên)
+        -> biểu đồ fitness -> lưới thế hệ -> dữ liệu JSON + PAGE_SCRIPT.
+        """
         configuration = solution.configuration
+        # tổng số tiết cần xếp = tổng Duration của mọi lớp học phần
         total_hours = sum(cc.Duration for cc in configuration.courseClasses)
 
         stats = (
@@ -3884,6 +4217,8 @@ class HtmlOutput:
         if fitness is None:
             score_html = ""
         else:
+            # fitness đã chuẩn hoá trong [0, 1]: (điểm cứng - phạt mềm)/(3 x số lớp)
+            # -> nhân 100 thành %; 100% nghĩa là không còn vi phạm cứng nào
             percent = max(0.0, min(1.0, float(fitness))) * 100
             perfect_class = " perfect" if percent >= 99.95 else ""
             score_html = (
@@ -3893,6 +4228,7 @@ class HtmlOutput:
                 '</div>'
             )
 
+        # chú thích 3 ràng buộc cứng: CRITERIAS và CRITERIA_LABELS đồng chỉ số i
         legend_items = "".join(
             f'<li class="legend-item"><span class="crit">{letter}</span>'
             f'<span>{html.escape(label)}</span></li>'
@@ -3901,6 +4237,8 @@ class HtmlOutput:
         soft_legend_html = HtmlOutput.getSoftLegendHtml(solution)
 
         generated_at = datetime.now().strftime("%H:%M · %d/%m/%Y")
+        # dòng mô tả quy ước thời gian: 5 ngày x 12 tiết (6 sáng + 6 chiều),
+        # mỗi tiết 50 phút liền nhau, sáng từ 7:00, chiều từ 13:00, nghỉ trưa 12-13h
         subtitle = (
             f"Kết quả xếp lịch cho {Constant.DAYS_NUM} ngày làm việc, "
             f"mỗi ngày 2 buổi × {Constant.TEACHING_HOURS // 2} tiết, "
@@ -3913,8 +4251,10 @@ class HtmlOutput:
         )
         settings_html = HtmlOutput.getSettingsSection(parameters)
         input_html = HtmlOutput.getInputSection(solution)
+        # hai khối diễn biến: biểu đồ fitness (SVG) và lưới thế hệ bấm-để-xem-lịch
         history_html = HtmlOutput.getHistorySection(history)
         steps_html = HtmlOutput.getStepsSection(history)
+        # payload JSON gọn cho JavaScript, đặt cuối trang để không chặn hiển thị
         steps_data = HtmlOutput.getStepsData(history)
 
         return (

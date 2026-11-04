@@ -1,3 +1,13 @@
+"""Đọc tệp cấu hình JSON và dựng các đối tượng mà giải thuật cần.
+
+Định dạng tệp: một danh sách các object, mỗi object có đúng một khoá
+`prof` / `course` / `room` / `class`. ID của Room và CourseClass KHÔNG lấy từ tệp
+mà do bộ đếm tự tăng gán theo thứ tự đọc (restartIDs() được gọi đầu parseFile),
+vì vậy THỨ TỰ phòng trong tệp quyết định ID phòng — đổi thứ tự sẽ làm lệch mọi
+tham chiếu phòng trong báo cáo.
+
+Giảng viên thì có `id` tường minh trong tệp, và `subjects` là danh sách ID môn.
+"""
 import json
 
 from .Professor import Professor
@@ -23,6 +33,7 @@ class Configuration:
         self._courseClasses = []
         # tra cứu: ID môn -> danh sách giảng viên có khả năng giảng dạy môn đó
         self._professorsByCourse = {}
+
 
     # Trả về giảng viên có ID được chỉ định
     # Nếu không có giảng viên nào với ID đó thì hàm trả về NULL
@@ -83,6 +94,15 @@ class Configuration:
     # từng ô (day, time) và đó là dạng duy nhất bộ nhớ giữ lại.
     @staticmethod
     def __parseProfessor(dictConfig):
+        """Dựng Professor; khối busy được BUNG thành tập từng ô (ngày, offset).
+
+        Mỗi block {day, start, end} là một dải khép kín hai đầu, sinh ra
+        end - start + 1 ô theo `t in range(start, end + 1)`. start/end là offset
+        0-based theo DAY_HOURS = 13 (0..5 sáng, 6 nghỉ trưa, 7..12 chiều), KHÔNG
+        phải số tiết hiển thị. Giáo viên chọn bao nhiêu khung tuỳ ý; sau bước này
+        dạng dải không còn tồn tại, mọi kiểm tra (Professor.isBusyAt, phạt B,
+        lưới tô màu) đều làm việc trên tập ô rời rạc.
+        """
         id = 0
         name = ''
         subjects = []
@@ -105,9 +125,11 @@ class Configuration:
                     for t in range(int(start), int(end) + 1):
                         busy.append((int(day), t))
 
+        # id = 0 hoặc thiếu tên coi như bản ghi không hợp lệ
         if id == 0 or name == '':
             return None
         return Professor(id, name, subjects, busy)
+
 
     # Đọc dữ liệu môn học từ tệp cấu hình, tạo đối tượng và trả về con trỏ
     # Trả về None nếu hàm không thể phân tích được dữ liệu dictConfig
@@ -165,12 +187,20 @@ class Configuration:
 
     # phân tích tệp và lưu các đối tượng đã phân tích
     def parseFile(self, fileName):
+        """Nạp lại toàn bộ dữ liệu từ một tệp JSON.
+
+        Thứ tự hai vòng lặp có ý nghĩa: các object `course` phải được đọc trước
+        các object `class` (lớp tra môn theo ID), và `prof` trước `class` không
+        quan trọng vì lớp không còn giữ giảng viên cài sẵn. Room và CourseClass
+        lấy ID tự tăng theo thứ tự xuất hiện trong tệp.
+        """
         # xoá các đối tượng đã phân tích trước đó
         self._professors = {}
         self._courses = {}
         self._rooms = {}
         self._courseClasses = []
 
+        # đưa bộ đếm ID về 0 để lần nạp này bắt đầu lại từ đầu
         Room.restartIDs()
         CourseClass.restartIDs()
 
@@ -193,7 +223,10 @@ class Configuration:
                     courseClass = self.__parseCourseClass(dictConfig[key])
                     self._courseClasses.append(courseClass)
 
-        # xây dựng tra cứu môn -> giảng viên có khả năng giảng dạy
+        # xây dựng tra cứu môn -> giảng viên có khả năng giảng dạy.
+        # Đây là không gian gen cho khối "gán giảng viên": một lớp chỉ được rút
+        # từ danh sách này (Schedule._randomProfessorFor), nên một môn không có
+        # giảng viên nào sẽ ra lớp không có giảng viên (không phạt G, không phạt B).
         self._professorsByCourse = {}
         for professor in self._professors.values():
             for courseId in professor.Subjects:
@@ -204,3 +237,4 @@ class Configuration:
     # Trả về danh sách giảng viên có khả năng giảng dạy môn học với ID cho trước
     def getProfessorsByCourse(self, courseId):
         return self._professorsByCourse.get(courseId, [])
+

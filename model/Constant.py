@@ -1,4 +1,24 @@
+"""Hằng số mô hình thời gian và các hàm quy đổi giữa hai hệ quy chiếu tiết học.
+
+MỘT NGÀY CÓ DAY_HOURS = 13 OFFSET, đánh số 0..12:
+    offset 0..5   : 6 tiết sáng, 7:00 → 12:00, mỗi tiết 50 phút, liền nhau
+    offset 6      : khung nghỉ trưa 12:00 → 13:00 (KHÔNG phải tiết học)
+    offset 7..12  : 6 tiết chiều, 13:00 → 18:00
+Một tuần có DAYS_NUM = 5 ngày nên một phòng có TEACHING_HOURS × DAYS_NUM = 60 tiết
+dạy thật. Schedule._slots phẳng vẫn giữ 13 offset mỗi ngày (kể cả nghỉ trưa) vì
+công thức băm ô nhân thẳng với DAY_HOURS.
+
+HAI HỆ QUY CHIẾU, đừng nhầm:
+    offset 0-based  : dùng trong Reservation.Time, Professor.BusySlots, JSON "busy"
+                      và mọi vòng lặp tính toán của giải thuật.
+    số tiết 1-based : chỉ để hiển thị, do periodNumber() sinh ra. Vì nghỉ trưa không
+                      chiếm số tiết, quy đổi KHÔNG đều: sáng offset o → tiết o + 1,
+                      chiều offset o → tiết o (buổi chiều đã tự nhảy một bậc).
+                      HtmlOutput lại cộng thêm 1 nữa để ra số dòng bảng (1..13,
+                      nghỉ trưa ở dòng 7).
+"""
 class Constant:
+
     # Số ngày trong một tuần
     DAYS_NUM = 5
     # Giờ bắt đầu làm việc trong ngày (buổi sáng)

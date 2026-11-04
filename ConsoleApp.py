@@ -49,9 +49,16 @@ def apply_busy_to_file(file_name, busy_payload):
     """Áp dụng lịch bận do giảng viên chọn từ trang vào tệp cấu hình.
 
     busy_payload: dict mapping profId (str|int) -> danh sách khung {day, start, end}.
+    day/start/end là offset 0-based theo DAY_HOURS = 13, khép kín hai đầu (end tính
+    cả end) — đúng quy ước mà Configuration.__parseProfessor và Professor.BusySlots
+    dùng; lưới trên trang tự đổi từ số dòng 1-based sang offset trước khi gửi.
+
     Chỉ ghi đè những giảng viên có mặt trong payload: danh sách rỗng nghĩa là
     giảng viên đó đã bỏ hết khung bận, còn việc thiếu khoá cho biết trang không
     gửi dữ liệu của giảng viên đó nên giữ nguyên như cũ.
+
+    Ghi lại tệp theo indent tab, ensure_ascii=False để tiếng Việt giữ nguyên ký tự;
+    thay đổi này có hiệu lực ở LẦN CHẠY KẾ TIẾP vì fitness đọc BusySlots lúc nạp tệp.
     """
     path = resolve_input_path(file_name)
     with open(path, "r", encoding="utf-8") as f:
@@ -91,11 +98,32 @@ def apply_busy_to_file(file_name, busy_payload):
 
 
 def run_schedule(file_name, parameters=None):
-    """Chạy thuật toán và trả về (HTML, số giây, thông số đã áp dụng)."""
+    """Chạy một chu trình đầy đủ và trả về (HTML, số giây, thông số đã áp dụng).
+
+    Thứ tự các bước là hợp đồng của cả chương trình:
+      1. Configuration.parseFile : nạp giảng viên / môn / phòng / lớp từ JSON.
+      2. normalize_parameters    : ép thông số về khoảng hợp lệ theo SỐ LỚP thực
+                                   tế (số điểm cắt và mức đột biến không vượt quá
+                                   số lớp), lỗi nhập sẽ thành ParameterError.
+      3. Tracer.input            : in bảng thông tin đầu vào; chỉ in, không ảnh
+                                   hưởng kết quả.
+      4. GeneticAlgorithm(...)   : dựng quần thể rỗng theo thông số, chưa sinh cá thể.
+      5. Tracer.reset()          : MỒI mốc thời gian và xóa lịch sử TRƯỚC khi chạy,
+                                   nếu đặt sau thì cột giây và biểu đồ fitness sẽ
+                                   lệch cả chu kỳ đọc dữ liệu.
+      6. alg.run(minFitness=...) : tiến hoá; Trace tự ghi lại từng thế hệ.
+      7. Tracer.professors       : lịch giảng dạy theo giảng viên của cá thểelit.
+      8. HtmlOutput.getResult(history=...) : báo cáo, dùng lịch sử ở bước 6 để vẽ
+                                   bảng đánh giá và lưới "qua các bước".
+
+    Thời gian được đo bằng miligiây rồi chia 1000 để hiển thị giây; đây là thời
+    gian thực của cả chu trình (đọc tệp + tiến hoá + vẽ HTML), không riêng vòng chạy.
+    """
     start_time = int(round(time.time() * 1000))
 
     configuration = Configuration()
     configuration.parseFile(resolve_input_path(file_name))
+    # numberOfClasses được truyền vào để normalize chặn theo quy mô bài toán
     parameters = normalize_parameters(
         parameters,
         configuration.numberOfCourseClasses,
@@ -116,6 +144,7 @@ def run_schedule(file_name, parameters=None):
         replaceByGeneration=parameters["replaceByGeneration"],
         trackBest=parameters["trackBest"],
     )
+
     print("GaSchedule phiên bản 1.2.6. Lập thời khóa biểu bằng", alg, ".\n")
     print("Bản quyền (C) 2022 - 2024 Miller Cy Chan.\n")
     print(
@@ -128,11 +157,15 @@ def run_schedule(file_name, parameters=None):
             parameters["mutationProbability"],
         )
     )
+    # Mồi lại đồng hồ và lịch sử thế hệ ngay trước vòng tiến hoá (bước 5)
     Tracer.reset()
+    # Dừng sớm khi fitness tốt nhất VƯỢT minFitness; Trace in + lưu từng thế hệ
     alg.run(minFitness=parameters["minFitness"])
 
     # In lịch giảng dạy của từng giảng viên theo lời giải tốt nhất
+    # (alg.result là cá thểelit đầu bảng, xem GeneticAlgorithm.result)
     Tracer.professors(alg.result)
+
 
     html_result = HtmlOutput.getResult(
         alg.result,
@@ -272,9 +305,13 @@ class ReportRequestHandler(BaseHTTPRequestHandler):
             return
 
         server = self.server
-        # Giữ các thông số hiện tại nếu trang cũ chỉ gửi một phần dữ liệu.
+        # Giữ các thông số hiện tại nếu trang cũ chỉ gửi một phần dữ liệu: lần chạy
+        # lại thừa kế quần thể/thế hệ cũ, chỉ những khoá trang gửi mới đổi.
+        # Giá trị gộp chưa hợp lệ sẽ bị normalize_parameters trong run_schedule chặn
+        # lại hoặc báo ParameterError (HTTP 400), không lọt vào GeneticAlgorithm.
         parameters = dict(server.parameters)
         parameters.update(requested)
+
 
         if not server.rerun_lock.acquire(blocking=False):
             self._send_json(
@@ -369,9 +406,18 @@ def serve_report(report_path, file_name, html_result, parameters):
 
 
 def main(file_name, serve=True):
+    """Mở báo cáo mà KHÔNG chạy giải thuật: trang đầu tiên luôn là lịch trống.
+
+    initial_solution chỉ là vật thay thế (duck-typing theo giao diện của Schedule)
+    để HtmlOutput lấy được configuration; classes/professors rỗng nghĩa là chưa có
+    gen nào, fitness = None nên phần đánh giá để trống. Người dùng bấm "▶ Chạy" thì
+    /rerun mới gọi run_schedule thật sự.
+    """
     # Khởi tạo dữ liệu đầu vào và báo cáo tĩnh; không tự chạy thuật toán.
     configuration = Configuration()
     configuration.parseFile(resolve_input_path(file_name))
+    # values=None → mọi thông số lấy từ DEFAULTS, chỉ bị chặn thêm theo số lớp của
+    # tệp vừa nạp; đây là giá trị khởi điểm hiển thị trên form trước lần chạy đầu.
     parameters = normalize_parameters(None, configuration.numberOfCourseClasses)
     initial_solution = SimpleNamespace(
         configuration=configuration,
@@ -380,6 +426,7 @@ def main(file_name, serve=True):
         criteria=None,
         fitness=None,
     )
+
     html_result = HtmlOutput.getDocument(
         initial_solution,
         room_sections="",

@@ -1,7 +1,15 @@
 # Lưu trữ dữ liệu về phòng học
 class Room:
+    """Phòng học; ID do bộ đếm tự tăng, KHÔNG đọc từ tệp.
+
+    ID được gán theo thứ tự xuất hiện của các object `room` trong JSON, nên thêm
+    hoặc đảo vị trí phòng làm thay đổi ID và kéo theo toàn bộ tham chiếu phòng
+    trong Reservation/slots dịch theo. Mỗi phòng có khả năng chứa
+    Constant.TEACHING_HOURS × Constant.DAYS_NUM tiết mỗi tuần.
+    """
     # Bộ đếm ID được dùng để gán ID tự động
     _next_room_id = 0
+
 
     # Khởi tạo dữ liệu phòng học và gán ID cho phòng
     def __init__(self, name):
