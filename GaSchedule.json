@@ -14,52 +14,27 @@
 				{
 					"day": 0,
 					"start": 0,
-					"end": 5
-				},
-				{
-					"day": 0,
-					"start": 7,
-					"end": 12
+					"end": 1
 				},
 				{
 					"day": 1,
 					"start": 0,
-					"end": 5
-				},
-				{
-					"day": 1,
-					"start": 7,
-					"end": 12
+					"end": 1
 				},
 				{
 					"day": 2,
 					"start": 0,
-					"end": 5
-				},
-				{
-					"day": 2,
-					"start": 7,
-					"end": 12
+					"end": 1
 				},
 				{
 					"day": 3,
 					"start": 0,
-					"end": 5
-				},
-				{
-					"day": 3,
-					"start": 7,
-					"end": 12
+					"end": 1
 				},
 				{
 					"day": 4,
 					"start": 0,
-					"end": 5
-				},
-				{
-					"day": 4,
-					"start": 7,
-					"end": 12
+					"end": 1
 				}
 			]
 		}
@@ -232,6 +207,11 @@
 	{
 		"room": {
 			"name": "Phòng 303"
+		}
+	},
+	{
+		"room": {
+			"name": "Phòng 401"
 		}
 	},
 	{
