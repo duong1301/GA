@@ -2235,25 +2235,37 @@ class HtmlOutput:
                     }
                 });
 
-                const overlaps = new Set();
-                slots.forEach((bucket, key) => {
-                    for (const period in bucket) {
-                        if (bucket[period].length > 1) {
-                            overlaps.add(key);
-                            break;
-                        }
-                    }
-                });
-                return { slots, overlaps };
+                return { slots };
             };
 
-            const roomTable = (roomId, slots, overlaps) => {
+            // Số tiết liền kề chỉ do một lớp chiếm, không vượt qua bảng hay ô nghỉ trưa.
+            const mergeSpan = (entry, periodId, bucket, lunchPeriod) => {
+                if (periodId === lunchPeriod) return 1;
+                const last = Math.min(
+                    entry.start + entry.course.dur - 1, data.rows - 1);
+                let span = 1;
+                while (periodId + span <= last) {
+                    const nextPeriod = periodId + span;
+                    if (nextPeriod === lunchPeriod) break;
+                    if ((bucket[nextPeriod] || []).length !== 1) break;
+                    span += 1;
+                }
+                return span;
+            };
+
+            const roomTable = (roomId, slots) => {
                 const roomName = data.rooms[roomId];
+                const lunchPeriod = data.lunch + 1;
+                const covered = [];
+                for (let day = 1; day < data.cols; day++) {
+                    covered[day] = new Set();
+                }
                 let rows = "";
 
                 for (let periodId = 1; periodId < data.rows; periodId++) {
                     let cellsHtml = "";
                     for (let dayId = 1; dayId < data.cols; dayId++) {
+                        if (covered[dayId].has(periodId)) continue;
                         const bucket = slots.get(roomId + "|" + dayId) || {};
                         const entries = bucket[periodId] || [];
                         if (!entries.length) {
@@ -2261,20 +2273,31 @@ class HtmlOutput:
                             continue;
                         }
 
-                        const hasOverlap = overlaps.has(roomId + "|" + dayId);
-                        if (!hasOverlap && entries.length === 1) {
+                        if (entries.length === 1) {
                             const entry = entries[0];
+                            const span = mergeSpan(
+                                entry, periodId, bucket, lunchPeriod);
+                            const busyPeriods = (entry.busyPeriods || []).filter(
+                                period => period >= periodId &&
+                                    period < periodId + span
+                            );
+                            const soft = busyPeriods.length > 0;
                             const first = entry.start === periodId;
                             cellsHtml += '<td class="slot filled' +
-                                (entry.busy ? " busy-soft" : "") + '">' +
-                                (entry.busy ? busyChip([periodId]) : "") +
+                                (soft ? " busy-soft" : "") + '"' +
+                                (span > 1 ? ' rowspan="' + span + '"' : "") +
+                                ">" +
+                                (soft ? busyChip(busyPeriods) : "") +
                                 '<div class="course-card' +
                                 (first ? "" : " continued") + '">' +
                                 courseCard(
                                     entry.course, entry.prof, entry.bits,
-                                    entry.offset, !first, entry.busy
+                                    entry.offset, !first, soft
                                 ) +
                                 "</div></td>";
+                            for (let period = periodId; period < periodId + span; period++) {
+                                covered[dayId].add(period);
+                            }
                             continue;
                         }
 
@@ -2380,7 +2403,7 @@ class HtmlOutput:
                 const collected = collectSlots(step);
                 panelBody.innerHTML = '<div class="rooms">' +
                     data.rooms.map((room, roomId) =>
-                        roomTable(roomId, collected.slots, collected.overlaps)
+                        roomTable(roomId, collected.slots)
                     ).join("") +
                     "</div>";
                 panel.hidden = false;
@@ -2514,12 +2537,7 @@ class HtmlOutput:
 
             ci += len(HtmlOutput.CRITERIAS)
 
-        overlapping_slots = {
-            key
-            for key, periods in entries_by_slot.items()
-            if any(len(entries) > 1 for entries in periods.values())
-        }
-        return entries_by_slot, overlapping_slots
+        return entries_by_slot
 
     @staticmethod
     def busyPeriods(professor, day, startPeriod, duration):
@@ -2590,27 +2608,49 @@ class HtmlOutput:
         )
 
     @staticmethod
-    def getHtmlCell(content, busy=False, soft=False, title=""):
+    def getHtmlCell(content, busy=False, soft=False, title="", rowspan=None):
+        span = f' rowspan="{rowspan}"' if rowspan and rowspan > 1 else ""
         if content is None:
             if not busy:
                 return '<td class="slot empty"></td>'
-            return '<td class="slot empty busy" title="{}"></td>'.format(
-                html.escape(title))
+            return '<td class="slot empty busy"{} title="{}"></td>'.format(
+                span, html.escape(title))
 
         cls = "slot filled" + (" busy-soft" if soft else "")
-        return f'<td class="{cls}">{content}</td>'
+        return f'<td class="{cls}"{span}>{content}</td>'
 
     @staticmethod
-    def getScheduleTable(key, entries_by_slot, overlapping_slots,
+    def mergeSpan(entry, periodId, day_entries, lunchPeriod):
+        """Số tiết liền kề chỉ do một lớp chiếm, không vượt qua bảng hay ô nghỉ trưa."""
+        if periodId == lunchPeriod:
+            return 1
+        last = min(entry["start"] + entry["duration"] - 1,
+                   HtmlOutput.ROOM_ROW_NUMBER - 1)
+        span = 1
+        while periodId + span <= last:
+            nextPeriod = periodId + span
+            if nextPeriod == lunchPeriod:
+                break
+            if len(day_entries.get(nextPeriod, ())) != 1:
+                break
+            span += 1
+        return span
+
+    @staticmethod
+    def getScheduleTable(key, entries_by_slot,
                          overlap_label="Trùng phòng", caption="",
                          busy_slots=None):
-        """Dựng bảng lịch theo ngày (gồm cả khung nghỉ trưa) cho khóa/phòng/GV."""
+        """Dựng bảng lịch theo ngày; các tiết liền nhau cùng một lớp gộp thành một ô rowspan."""
         rows = []
         busy_slots = busy_slots or set()
+        covered = {dayId: set() for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER)}
+        lunchPeriod = Constant.LUNCH_PERIOD + 1
 
         for periodId in range(1, HtmlOutput.ROOM_ROW_NUMBER):
             cells = []
             for dayId in range(1, HtmlOutput.ROOM_COLUMN_NUMBER):
+                if periodId in covered[dayId]:
+                    continue
                 day_entries = entries_by_slot.get((key, dayId), {})
                 slot_entries = day_entries.get(periodId, [])
                 if not slot_entries:
@@ -2623,17 +2663,24 @@ class HtmlOutput:
                             Constant.periodTimeRange(offset, sep="-"))))
                     continue
 
-                has_overlap = (key, dayId) in overlapping_slots
-                if not has_overlap and len(slot_entries) == 1:
+                if len(slot_entries) == 1:
                     entry = slot_entries[0]
-                    is_busy = periodId in set(entry.get("busy_periods") or ())
-                    chip = HtmlOutput.getBusyChip([periodId]) if is_busy else ""
+                    span = HtmlOutput.mergeSpan(
+                        entry, periodId, day_entries, lunchPeriod)
+                    busy_periods = [
+                        period for period in (entry.get("busy_periods") or ())
+                        if periodId <= period < periodId + span
+                    ]
+                    chip = (HtmlOutput.getBusyChip(busy_periods)
+                            if busy_periods else "")
                     if entry["start"] == periodId:
                         card = f'<div class="course-card">{entry["html"]}</div>'
                     else:
                         card = (f'<div class="course-card continued">'
                                 f'{entry["continued"]}</div>')
-                    cells.append(HtmlOutput.getHtmlCell(chip + card, soft=is_busy))
+                    cells.append(HtmlOutput.getHtmlCell(
+                        chip + card, soft=bool(busy_periods), rowspan=span))
+                    covered[dayId].update(range(periodId, periodId + span))
                     continue
 
                 # Trùng phòng: xếp chồng mọi lớp đang diễn ra trong cùng ô.
@@ -2691,12 +2738,11 @@ class HtmlOutput:
         )
 
     @staticmethod
-    def getRoomTable(room, roomId, entries_by_slot, overlapping_slots):
+    def getRoomTable(room, roomId, entries_by_slot):
         """Bảng thời khóa biểu của một phòng học."""
         table = HtmlOutput.getScheduleTable(
             roomId,
             entries_by_slot,
-            overlapping_slots,
             overlap_label="Trùng phòng",
             caption=f"Thời khóa biểu phòng {room.Name}",
         )
@@ -2766,21 +2812,15 @@ class HtmlOutput:
                     break
                 entries_by_slot[(profId, dayId)][periodId].append(entry)
 
-        overlapping_slots = {
-            key
-            for key, periods in entries_by_slot.items()
-            if any(len(entries) > 1 for entries in periods.values())
-        }
-        return entries_by_slot, overlapping_slots, busy_classes
+        return entries_by_slot, busy_classes
 
     @staticmethod
-    def getProfessorTable(professor, profId, entries_by_slot, overlapping_slots,
+    def getProfessorTable(professor, profId, entries_by_slot,
                           total_hours, number_of_courses, busy_classes=0):
         """Bảng thời khóa biểu của một giảng viên."""
         table = HtmlOutput.getScheduleTable(
             profId,
             entries_by_slot,
-            overlapping_slots,
             overlap_label="Trùng lịch giảng viên",
             caption=f"Lịch giảng dạy của {professor.Name}",
             busy_slots=professor.BusySlots,
@@ -2816,8 +2856,7 @@ class HtmlOutput:
     def getProfessorSections(solution):
         """Tạo các bảng lịch giảng dạy của từng giảng viên."""
         configuration = solution.configuration
-        (entries_by_slot, overlapping_slots,
-         busy_classes) = HtmlOutput.generateProfessorTimeTable(solution)
+        entries_by_slot, busy_classes = HtmlOutput.generateProfessorTimeTable(solution)
         if not entries_by_slot:
             return (
                 '<div class="empty-state">'
@@ -2850,7 +2889,6 @@ class HtmlOutput:
                     professor,
                     profId,
                     entries_by_slot,
-                    overlapping_slots,
                     hours[profId],
                     len(courses[profId]),
                     busy_classes.get(profId, 0),
@@ -2864,7 +2902,7 @@ class HtmlOutput:
         configuration = solution.configuration
         nr = configuration.numberOfRooms
 
-        entries_by_slot, overlapping_slots = HtmlOutput.generateTimeTable(solution)
+        entries_by_slot = HtmlOutput.generateTimeTable(solution)
         if not entries_by_slot:
             return (
                 '<div class="empty-state">'
@@ -2877,12 +2915,7 @@ class HtmlOutput:
             room = configuration.getRoomById(roomId)
             if room is not None:
                 sections.append(
-                    HtmlOutput.getRoomTable(
-                        room,
-                        roomId,
-                        entries_by_slot,
-                        overlapping_slots,
-                    )
+                    HtmlOutput.getRoomTable(room, roomId, entries_by_slot)
                 )
         return "".join(sections)
 
@@ -3921,7 +3954,8 @@ class HtmlOutput:
             f'Mỗi vi phạm cứng mất trọn {Criteria.hardPenalty:g} điểm, còn ràng buộc '
             'mềm luôn phạt ít hơn nên thuật toán sửa P/G/N trước. '
             'Di chuột hoặc chạm vào ký hiệu để xem chi tiết. '
-            'Các lớp trùng phòng được xếp chồng trong cùng một ô.'
+            'Các tiết liền nhau của cùng một lớp gộp thành một ô; lớp trùng phòng '
+            'được xếp chồng trong cùng một ô.'
             '</p>\n'
             '</div>\n'
             f'<ul class="legend-items">{legend_items}</ul>\n'
